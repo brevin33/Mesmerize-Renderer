@@ -1,5 +1,10 @@
 ﻿#pragma once
 
+#define VShaderId uint16_t
+#define VMeshId uint16_t
+#define ObjectId uint16_t
+
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -10,10 +15,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 #include <assimp/ObjMaterial.h>
+
+#define STB_IMAGE_IMPLEMENTATION
 
 #include <iostream>
 #include <fstream>
@@ -29,3 +33,4 @@
 #include <optional>
 #include <set>
 #include <unordered_map>
+#include <array>
