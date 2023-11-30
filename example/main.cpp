@@ -12,6 +12,8 @@ void main() {
 
 	MZ::Renderer mezmerize(window);
 
+
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 		mezmerize.drawFrame();

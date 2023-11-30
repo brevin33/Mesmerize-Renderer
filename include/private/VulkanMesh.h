@@ -4,7 +4,8 @@ namespace MZ {
 	struct VulkanMesh
 	{
 
-		void cleanup() {
+
+		~VulkanMesh() {
 			vkDestroyBuffer(*device, indexBuffer, nullptr);
 			vkFreeMemory(*device, indexBufferMemory, nullptr);
 

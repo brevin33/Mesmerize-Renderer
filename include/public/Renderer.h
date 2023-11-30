@@ -4,10 +4,9 @@
 #include <VulkanRenderObject.h>
 #include <VulkanShader.h>
 #include <VulkanMesh.h>
+#include <VulkanTexture.h>
 
 namespace MZ{
-
-#define MAX_FRAMES_IN_FLIGHT 2
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -20,7 +19,9 @@ namespace MZ{
 	public:
         Renderer(GLFWwindow* window);
         ~Renderer();
+        
 		ObjectId addObject(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices, std::string vertShaderFilePath, std::string fragShaderFilePath);
+        ObjectId addObjectTexture(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices, std::string vertShaderFilePath, std::string fragShaderFilePath, std::string textureFilePath);
         void update();
         void drawFrame();
 
@@ -88,18 +89,19 @@ namespace MZ{
 		inline static bool framebufferResized;
 
         std::vector<VulkanRenderObject> objects;
-        ObjectId numObjects;
         std::vector<VulkanShader> shaders;
-        VMeshId numShaders;
         std::vector<VulkanMesh> meshes;
-        VShaderId numMeshes;
+        std::vector<VulkanTexture> textures;
+
+        uint32_t mipLevels;
+
 
 
     private:
 
-        VMeshId createMesh(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);
-        VShaderId createShader(std::string vertShaderFilePath, std::string fragShaderFilePath);
-
+        MeshId createMesh(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);
+        ShaderId createShader(std::string vertShaderFilePath, std::string fragShaderFilePath);
+        TextureId addTexture(std::string filePath);
 
         void windowInit();
         void createInstance();
@@ -116,6 +118,17 @@ namespace MZ{
         void createFramebuffers();
         void createSyncObjects();
         void createCommandBuffers();
+
+
+        void createTextureImage(std::string textureFilePath, VkImage& textureImage, VkDeviceMemory& textureImageMemory);
+        void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
+        void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1);
+        void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+        bool hasStencilComponent(VkFormat format);
+        void createTextureSampler(VkSampler& textureSampler);
+        void createDescriptorPoolTexture(VkDescriptorPool& descriptorPool);
+        void createDescriptorSetsTexture(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkBuffer>& uniformBuffers, VkImageView& textureImageView, VkSampler& textureSampler);
+        void updateUniformBuffer(VulkanRenderObject object,uint32_t currentImage);
 
 
         void createVertexBuffer(std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory);

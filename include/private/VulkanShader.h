@@ -2,7 +2,7 @@
 namespace MZ {
 	struct VulkanShader {
 
-		void cleanup() {
+		~VulkanShader() {
 			vkDestroyPipeline(*device, graphicsPipeline, nullptr);
 			vkDestroyPipelineLayout(*device, pipelineLayout, nullptr);
 			vkDestroyDescriptorSetLayout(*device, descriptorSetLayout, nullptr);

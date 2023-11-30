@@ -1,9 +1,10 @@
 ﻿#pragma once
 
-#define VShaderId uint16_t
-#define VMeshId uint16_t
+#define ShaderId uint16_t
+#define MeshId uint16_t
 #define ObjectId uint16_t
-
+#define TextureId uint16_t
+#define MAX_FRAMES_IN_FLIGHT 2
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
