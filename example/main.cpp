@@ -2,22 +2,27 @@
 #include <Renderer.h>
 #define WIDTH 1920
 #define HEIGHT 1080
+#define VULKANRENDERER
+
 
 void main() {
 	glfwInit();
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, GraphicsAPI, nullptr, nullptr);
+	MZ::setup(window);
 
-	MZ::Renderer mezmerize(window);
-
-
+	MZ::Mesh mesh;
+	mesh.makeCircle(3);
+	MZ::addMesh(&mesh, "../../../shaders/planetVert.spv", "../../../shaders/planetFrag.spv");
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
-		mezmerize.drawFrame();
+		MZ::drawFrame();
 	}
+
+	MZ::cleanup();
 	glfwDestroyWindow(window);
 
 }
