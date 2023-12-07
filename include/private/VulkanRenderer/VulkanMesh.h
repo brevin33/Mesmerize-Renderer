@@ -1,21 +1,25 @@
 #pragma once
 #include <pch.h>
+#include <VulkanRenderer/VulkanRenderer.h>
 
-struct VulkanMesh
-{
 
-	void cleanup() {
-		vkDestroyBuffer(*device, indexBuffer, nullptr);
-		vkFreeMemory(*device, indexBufferMemory, nullptr);
+namespace MZ {
 
-		vkDestroyBuffer(*device, vertexBuffer, nullptr);
-		vkFreeMemory(*device, vertexBufferMemory, nullptr);
-	}
+	extern VmaAllocator allocator;
 
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
-	VkBuffer indexBuffer;
-	VkDeviceMemory indexBufferMemory;
-	VkDevice* device;
-	uint32_t indicesSize;
-};
+	struct VulkanMesh
+	{
+
+		void cleanup() {
+			vmaDestroyBuffer(allocator, indexBuffer, indexBufferMemory);
+			vmaDestroyBuffer(allocator, vertexBuffer, vertexBufferMemory);
+		}
+
+		VkBuffer vertexBuffer;
+		VmaAllocation vertexBufferMemory;
+		VkBuffer indexBuffer;
+		VmaAllocation indexBufferMemory;
+		uint32_t indicesSize;
+	};
+
+}

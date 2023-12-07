@@ -1,17 +1,23 @@
 #pragma once
 #include <pch.h>
+#include <VulkanRenderer/VulkanRenderer.h>
 
-struct VulkanShader {
+namespace MZ {
 
-	void cleanup() {
-		vkDestroyPipeline(*device, graphicsPipeline, nullptr);
-		vkDestroyPipelineLayout(*device, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(*device, descriptorSetLayout, nullptr);
+	extern VmaAllocator allocator;
+	extern VkDevice device;
 
-	}
+	struct VulkanShader {
 
-	VkPipelineLayout pipelineLayout;
-	VkPipeline graphicsPipeline;
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDevice* device;
-};
+		void cleanup() {
+			vkDestroyPipeline(device, graphicsPipeline, nullptr);
+			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		}
+
+		VkPipelineLayout pipelineLayout;
+		VkPipeline graphicsPipeline;
+		VkDescriptorSetLayout descriptorSetLayout;
+	};
+
+}

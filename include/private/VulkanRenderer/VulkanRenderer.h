@@ -2,6 +2,9 @@
 #define VULKANRENDERER
 #ifdef VULKANRENDERER
 
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 #include <pch.h>
 #include <Vertex.h>
 #include <assimp/Importer.hpp>
@@ -11,7 +14,7 @@
 #include <VulkanRenderer/VulkanMesh.h>
 #include <VulkanRenderer/VulkanRenderObject.h>
 #include <VulkanRenderer/VulkanShader.h>
-#include <Mesh.h>
+
 
 
 namespace MZ {
@@ -31,11 +34,19 @@ namespace MZ {
         std::vector<VkPresentModeKHR> presentModes;
     };
 
+    enum MappingType {
+        NoMapping,
+        Mapping,
+        PersitantMapping,
+    };
+
     GLFWwindow* window;
     bool framebufferResized = false;
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
     VkSurfaceKHR surface;
+
+    VmaAllocator allocator;
 
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
@@ -59,7 +70,7 @@ namespace MZ {
     uint32_t mipLevels;
 
     VkImage depthImage;
-    VkDeviceMemory depthImageMemory;
+    VmaAllocation depthImageMemory;
     VkImageView depthImageView;
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
@@ -106,7 +117,7 @@ namespace MZ {
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
-    void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VkDeviceMemory>& uniformBuffersMemory, std::vector<void*>& uniformBuffersMapped);
+    void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VmaAllocation>& uniformBuffersMemory, std::vector<VmaAllocationInfo>& uniformBuffersMapped);
 
     void createDescriptorPool(VkDescriptorPool& descriptorPool);
 
@@ -116,13 +127,13 @@ namespace MZ {
 
     void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout);
 
-    void createIndexBuffer(std::vector<uint32_t>& indices, VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory);
+    void createIndexBuffer(std::vector<uint32_t>& indices, VkBuffer& indexBuffer, VmaAllocation& indexBufferMemory);
 
-    void createVertexBuffer(std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory);
+    void createVertexBuffer(std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VmaAllocation& vertexBufferMemory);
 
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
-    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VmaAllocation& bufferMemory, MappingType mapping, VmaAllocationInfo* allocationInfo = nullptr);
 
     VkCommandBuffer beginSingleTimeCommands();
 
@@ -136,6 +147,7 @@ namespace MZ {
 
     void createCommandBuffers();
 
+
     void createFramebuffers();
 
     void createCommandPool();
@@ -147,6 +159,8 @@ namespace MZ {
     VkFormat findDepthFormat();
 
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+
+    void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VmaAllocation& imageMemory);
 
     void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
 
