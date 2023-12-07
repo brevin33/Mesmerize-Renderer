@@ -22,7 +22,7 @@ find_package(Vulkan REQUIRED)
 find_package(VulkanHeaders CONFIG)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 
-add_library(MyVulkanLib STATIC  "src/VulkanRenderer.cpp"  "include/public/Vertex.h"  "src/Mesh.cpp")
+add_library(MyVulkanLib STATIC  "src/VulkanRenderer.cpp"  "include/public/Vertex.h"  "src/Mesh.cpp" "src/Model.cpp")
 
 target_include_directories(MyVulkanLib PRIVATE include/private)
 target_include_directories(MyVulkanLib PRIVATE include/dep)
@@ -31,10 +31,9 @@ target_include_directories(MyVulkanLib PUBLIC include/public)
 target_precompile_headers(MyVulkanLib PUBLIC include/private/pch.h)
 
 target_link_libraries(MyVulkanLib PUBLIC glfw)
-target_link_libraries(MyVulkanLib PRIVATE Vulkan::Vulkan)
 target_link_libraries(MyVulkanLib PUBLIC glm::glm)
 target_link_libraries(MyVulkanLib PRIVATE imgui::imgui)
-target_link_libraries(MyVulkanLib PRIVATE assimp::assimp)
+target_link_libraries(MyVulkanLib PUBLIC assimp::assimp)
 target_link_libraries(MyVulkanLib PUBLIC Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)

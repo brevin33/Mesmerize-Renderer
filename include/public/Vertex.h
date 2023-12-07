@@ -11,9 +11,16 @@ namespace MZ {
         alignas(16) glm::mat4 proj;
     };
 
+#define MAX_BONE_INFLUENCE 4
     struct Vertex
     {
-        glm::vec3 pos;
+        glm::vec3 Position;
+        glm::vec3 Normal;
+        glm::vec2 TexCoords;
+        glm::vec3 Tangent;
+        glm::vec3 Bitangent;
+        int m_BoneIDs[MAX_BONE_INFLUENCE];
+        float m_Weights[MAX_BONE_INFLUENCE];
 
         static VkVertexInputBindingDescription getBindingDescription() {
             VkVertexInputBindingDescription bindingDescription{};
@@ -30,13 +37,13 @@ namespace MZ {
             attributeDescriptions[0].binding = 0;
             attributeDescriptions[0].location = 0;
             attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-            attributeDescriptions[0].offset = offsetof(Vertex, pos);
+            attributeDescriptions[0].offset = offsetof(Vertex, Position);
 
             return attributeDescriptions;
         }
 
         bool operator==(const Vertex& other) const {
-            return pos == other.pos;
+            return Position == other.Position;
         }
 
     };
@@ -45,7 +52,7 @@ namespace MZ {
 namespace std {
     template<> struct hash<MZ::Vertex> {
         size_t operator()(MZ::Vertex const& vertex) const {
-            return ((hash<glm::vec3>()(vertex.pos) ^ 3));
+            return ((hash<glm::vec3>()(vertex.Position) ^ 3));
         }
     };
 }

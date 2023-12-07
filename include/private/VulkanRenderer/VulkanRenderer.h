@@ -76,11 +76,12 @@ namespace MZ {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
-    VulkanRenderObject objects[2];
+#define MAXVULKANSTUFF 100
+    VulkanRenderObject objects[MAXVULKANSTUFF];
     uint16_t numObjects;
-    VulkanShader shaders[2];
+    VulkanShader shaders[MAXVULKANSTUFF];
     uint16_t numShaders;
-    VulkanMesh meshes[2];
+    VulkanMesh meshes[MAXVULKANSTUFF];
     uint16_t numMeshes;
 
 #ifdef NDEBUG
@@ -99,7 +100,7 @@ namespace MZ {
 
     ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath);
 
-    MeshID createMesh(Mesh* mesh);
+    MeshID createMesh(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);
 
     void updateUniformBuffer(VulkanRenderObject object, uint32_t currentImage);
 

@@ -113,16 +113,14 @@ namespace MZ {
 		return{ vertices, triangles };
 	}
 
-	void Mesh::makeCircle(int subdivisions)
+	void makeCircle(int subdivisions, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
 	{
-		vertices.clear();
-		indices.clear();
 		IndexedMesh circlePosAndIndies = make_icosphere(subdivisions);
 		for (size_t i = 0; i < circlePosAndIndies.first.size(); i++)
 		{
 			Vertex vertex;
 			v3 v = circlePosAndIndies.first[i];
-			vertex.pos = glm::vec3(v.pos[0], v.pos[1], v.pos[2]);
+			vertex.Position = glm::vec3(v.pos[0], v.pos[1], v.pos[2]);
 			vertices.push_back(vertex);
 		}
 

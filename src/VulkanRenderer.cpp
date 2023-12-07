@@ -68,8 +68,8 @@ namespace MZ {
         vkDestroyInstance(instance, nullptr);
     }
 
-    ObjectID addMesh(Mesh* mesh, std::string vertShaderFilePath, std::string fragShaderFilePath) {
-        MeshID meshID = createMesh(mesh);
+    ObjectID addMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, std::string vertShaderFilePath, std::string fragShaderFilePath, std::vector<std::string> textures){
+        MeshID meshID = createMesh(&vertices, &indices);
         ShaderID shaderID = createShader(vertShaderFilePath, fragShaderFilePath);
 
         objects[numObjects].meshID = meshID;
@@ -81,6 +81,16 @@ namespace MZ {
         numObjects++;
         return numObjects - 1;
     }
+
+    std::vector<ObjectID> addModel(Model model, std::string vertShaderFilePath, std::string fragShaderFilePath) {
+        std::vector<ObjectID> ids;
+        for (size_t i = 0; i < model.modelIndices.size(); i++)
+        {
+            ids.push_back(addMesh(model.modelVertices[i], model.modelIndices[i], vertShaderFilePath, fragShaderFilePath, model.modelTextures[i]));
+        }
+        return ids;
+    }
+
 
     void drawFrame() {
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
@@ -246,12 +256,12 @@ namespace MZ {
         return numShaders - 1;
     }
 
-    MeshID createMesh(Mesh* mesh)
+    MeshID createMesh(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices)
     {
-        createVertexBuffer(mesh->vertices, meshes[numMeshes].vertexBuffer, meshes[numMeshes].vertexBufferMemory);
-        createIndexBuffer(mesh->indices, meshes[numMeshes].indexBuffer, meshes[numMeshes].indexBufferMemory);
+        createVertexBuffer(*vertices, meshes[numMeshes].vertexBuffer, meshes[numMeshes].vertexBufferMemory);
+        createIndexBuffer(*indices, meshes[numMeshes].indexBuffer, meshes[numMeshes].indexBufferMemory);
         meshes[numMeshes].device = &device;
-        meshes[numMeshes].indicesSize = mesh->indices.size();
+        meshes[numMeshes].indicesSize = indices->size();
         numMeshes++;
         return numMeshes - 1;
     }

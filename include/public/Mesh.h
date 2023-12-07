@@ -3,10 +3,6 @@
 #include <Vertex.h>
 
 namespace MZ {
-	struct Mesh {
-		std::vector<Vertex> vertices;
-		std::vector<uint32_t> indices;
 
-		void makeCircle(int subdivisions);
-	};
+	void makeCircle(int subdivisions,std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 }
