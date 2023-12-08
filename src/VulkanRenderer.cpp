@@ -73,9 +73,14 @@ namespace MZ {
         vkDestroyInstance(instance, nullptr);
     }
 
-    ObjectID addMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, std::string vertShaderFilePath, std::string fragShaderFilePath, std::vector<std::string> textures){
+    ObjectID addMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, std::string vertShaderFilePath, std::string fragShaderFilePath, std::vector<std::string> textureFilepaths){
         MeshID meshID = createMesh(&vertices, &indices);
         ShaderID shaderID = createShader(vertShaderFilePath, fragShaderFilePath);
+        std::vector<TextureID> textureIDs(textureFilepaths.size());
+        for (size_t i = 0; i < textureFilepaths.size(); i++)
+        {
+            textureIDs[i] = createTexture(textureFilepaths[i]);
+        }
 
         objects[numObjects].meshID = meshID;
         objects[numObjects].shaderID = shaderID;
@@ -278,6 +283,10 @@ namespace MZ {
         meshes[numMeshes].indicesSize = indices->size();
         numMeshes++;
         return numMeshes - 1;
+    }
+
+    TextureID createTexture(std::string textureFilepath) {
+
     }
 
 
@@ -594,11 +603,11 @@ namespace MZ {
     }
 
     void cleanupSwapChain() {
+        vmaDestroyImage(allocator, depthImage, depthImageMemory);
         vkDestroyImageView(device, depthImageView, nullptr);
-        //vmaDestroyImage(allocator, depthImage, depthImageMemory);
 
+        vmaDestroyImage(allocator, colorImage, colorImageMemory);
         vkDestroyImageView(device, colorImageView, nullptr);
-        //vmaDestroyImage(allocator, colorImage, colorImageMemory);
 
         for (auto framebuffer : swapChainFramebuffers) {
             vkDestroyFramebuffer(device, framebuffer, nullptr);
@@ -754,7 +763,7 @@ namespace MZ {
         throw std::runtime_error("failed to find supported format!");
     }
 
-    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VmaAllocation& bufferMemory, MappingType mapping, VmaAllocationInfo* allocationInfo) {
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VmaAllocation& bufferMemory, BufferMappingType mapping, VmaAllocationInfo* allocationInfo) {
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.size = size;

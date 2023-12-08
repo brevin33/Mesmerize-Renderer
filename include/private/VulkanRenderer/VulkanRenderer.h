@@ -34,7 +34,7 @@ namespace MZ {
         std::vector<VkPresentModeKHR> presentModes;
     };
 
-    enum MappingType {
+    enum BufferMappingType {
         NoMapping,
         Mapping,
         PersitantMapping,
@@ -79,7 +79,7 @@ namespace MZ {
     uint32_t currentFrame = 0;
 
     VkImage colorImage;
-    VkDeviceMemory colorImageMemory;
+    VmaAllocation colorImageMemory;
     VkImageView colorImageView;
     VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
@@ -113,6 +113,8 @@ namespace MZ {
 
     MeshID createMesh(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);
 
+    TextureID createTexture(std::string textureFilepath);
+
     void updateUniformBuffer(VulkanRenderObject object, uint32_t currentImage);
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
@@ -133,7 +135,7 @@ namespace MZ {
 
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
-    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VmaAllocation& bufferMemory, MappingType mapping, VmaAllocationInfo* allocationInfo = nullptr);
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VmaAllocation& bufferMemory, BufferMappingType mapping, VmaAllocationInfo* allocationInfo = nullptr);
 
     VkCommandBuffer beginSingleTimeCommands();
 
