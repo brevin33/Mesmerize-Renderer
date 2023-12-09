@@ -14,6 +14,9 @@
 #include <VulkanRenderer/VulkanMesh.h>
 #include <VulkanRenderer/VulkanRenderObject.h>
 #include <VulkanRenderer/VulkanShader.h>
+#include <VulkanRenderer/VulkanTexture.h>
+#include <stb_image.h>
+
 
 
 
@@ -67,8 +70,6 @@ namespace MZ {
 
     std::vector<VkCommandBuffer> commandBuffers;
 
-    uint32_t mipLevels;
-
     VkImage depthImage;
     VmaAllocation depthImageMemory;
     VkImageView depthImageView;
@@ -94,6 +95,8 @@ namespace MZ {
     uint16_t numShaders;
     VulkanMesh meshes[MAXVULKANSTUFF];
     uint16_t numMeshes;
+    VulkanTexture textures[MAXVULKANSTUFF];
+    uint16_t numTextures;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -109,11 +112,23 @@ namespace MZ {
 
     void cleanupSwapChain();
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath);
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, int numTextures);
 
     MeshID createMesh(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);
 
     TextureID createTexture(std::string textureFilepath);
+
+    void createTextureSampler(VkSampler& textureSampler);
+        
+    void createTextureImage(std::string filepath, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView);
+
+    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+
+    void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
+
+    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1);
+
+    bool hasStencilComponent(VkFormat format);
 
     void updateUniformBuffer(VulkanRenderObject object, uint32_t currentImage);
 
@@ -121,13 +136,13 @@ namespace MZ {
 
     void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VmaAllocation>& uniformBuffersMemory, std::vector<VmaAllocationInfo>& uniformBuffersMapped);
 
-    void createDescriptorPool(VkDescriptorPool& descriptorPool);
+    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures);
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkBuffer>& uniformBuffers);
+    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkBuffer>& uniformBuffers, std::vector<TextureID>& textureIDs);
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout);
 
-    void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout);
+    void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures);
 
     void createIndexBuffer(std::vector<uint32_t>& indices, VkBuffer& indexBuffer, VmaAllocation& indexBufferMemory);
 

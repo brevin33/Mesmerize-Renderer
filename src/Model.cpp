@@ -10,7 +10,7 @@ namespace MZ {
 
         // read file via ASSIMP
         Assimp::Importer importer;
-        const aiScene* scene = importer.ReadFile(modelFilePath, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
+        const aiScene* scene = importer.ReadFile(modelFilePath, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace);
         // check for errors
         if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) // if is Not Zero
         {
@@ -18,7 +18,7 @@ namespace MZ {
             return;
         }
         // retrieve the directory path of the filepath
-        // directory = path.substr(0, path.find_last_of('/'));
+        directory = modelFilePath.substr(0, modelFilePath.find_last_of('/')) + '/';
 
         // process ASSIMP's root node recursively
         processNode(scene->mRootNode, scene);
@@ -136,7 +136,7 @@ namespace MZ {
             aiString str;
             mat->GetTexture(type, i, &str);
             // check if texture was loaded before and if so, continue to next iteration: skip loading a new texture
-            textures.push_back(str.C_Str());
+            textures.push_back(directory + str.C_Str());
         }
         return textures;
     }

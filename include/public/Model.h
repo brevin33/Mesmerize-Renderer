@@ -17,6 +17,7 @@ namespace MZ {
 
 	private:
 
+		std::string directory;
 		void processNode(aiNode* node, const aiScene* scene);
 		void processMesh(aiMesh* mesh, const aiScene* scene);
 		std::vector<std::string> loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName);
