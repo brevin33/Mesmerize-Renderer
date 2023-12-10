@@ -22,7 +22,9 @@ find_package(Vulkan REQUIRED)
 find_package(VulkanHeaders CONFIG)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 
-add_library(MyVulkanLib STATIC  "src/VulkanRenderer.cpp"  "include/public/Vertex.h"  "src/Model.cpp")
+add_library(MyVulkanLib STATIC  "src/VulkanRenderer.cpp"  "include/public/Mesmerize/Vertex.h"  "src/Model.cpp")
+
+add_compile_definitions(VULKANRENDERER)
 
 target_include_directories(MyVulkanLib PRIVATE include/private)
 target_include_directories(MyVulkanLib PRIVATE include/dep)

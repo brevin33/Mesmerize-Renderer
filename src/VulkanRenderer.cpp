@@ -1,7 +1,7 @@
 #include <VulkanRenderer/VulkanRenderer.h>
 #ifdef VULKANRENDERER
 
-#include <Renderer.h>
+#include <Mesmerize/Renderer.h>
 
 
 namespace MZ {
@@ -10,10 +10,6 @@ namespace MZ {
 
     //----------------------------------------------------------------------------- PUBLIC ---------------------------------------------------- PUBLIC ----------------------------------------------------------------
     void setup(GLFWwindow* w) {
-        numObjects = 0;
-        numShaders = 0;
-        numMeshes = 0;
-        numTextures = 0;
         window = w;
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
         createInstance();
@@ -38,21 +34,29 @@ namespace MZ {
 
         cleanupSwapChain();
 
-        for (size_t i = 0; i < numMeshes; i++)
+        for (size_t i = 0; i < meshVertexBuffers.size(); i++)
         {
-            meshes[i].cleanup();
+            vmaDestroyBuffer(allocator, meshIndexBuffers[i], meshIndexBufferMemorys[i]);
+            vmaDestroyBuffer(allocator, meshVertexBuffers[i], meshVertexBufferMemorys[i]);
         }
-        for (size_t i = 0; i < numShaders; i++)
+        for (size_t i = 0; i < shaderGraphicsPipelines.size(); i++)
         {
-            shaders[i].cleanup();
+            vkDestroyPipeline(device, shaderGraphicsPipelines[i], nullptr);
+            vkDestroyPipelineLayout(device, shaderPipelineLayouts[i], nullptr);
+            vkDestroyDescriptorSetLayout(device, shaderDescriptorSetLayouts[i], nullptr);
         }
-        for (size_t i = 0; i < numObjects; i++)
+        for (size_t i = 0; i < objectDescriptorPools.size(); i++)
         {
-            objects[i].cleanup();
+            vkDestroyDescriptorPool(device, objectDescriptorPools[i], nullptr);
+            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                vmaDestroyBuffer(allocator, objectUniformBuffers[i][j], objectUniformBuffersMemorys[i][j]);
+            }
         }
-        for (size_t i = 0; i < numTextures; i++)
+        for (size_t i = 0; i < textureImages.size(); i++)
         {
-            textures[i].cleanup();
+            vmaDestroyImage(allocator, textureImages[i], textureImageMemorys[i]);
+            vkDestroySampler(device, textureSamplers[i], nullptr);
+            vkDestroyImageView(device, textureImageViews[i], nullptr);
         }
 
 
@@ -87,13 +91,21 @@ namespace MZ {
             textureIDs[i] = createTexture(textureFilepaths[i]);
         }
 
-        objects[numObjects].meshID = meshID;
-        objects[numObjects].shaderID = shaderID;
-        createUniformBuffers(objects[numObjects].uniformBuffers, objects[numObjects].uniformBuffersMemory, objects[numObjects].uniformBuffersMapped);
-        createDescriptorPool(objects[numObjects].descriptorPool, textureIDs.size());
-        createDescriptorSets(objects[numObjects].descriptorSets, objects[numObjects].descriptorPool, shaders[shaderID].descriptorSetLayout, objects[numObjects].uniformBuffers, textureIDs);
-        numObjects++;
-        return numObjects - 1;
+        int i = objectUniformBuffers.size();
+        objectUniformBuffers.resize(i+1);
+        objectMeshIDs.resize(i + 1);
+        objectShaderIDs.resize(i + 1);
+        objectUniformBuffersMemorys.resize(i + 1);
+        objectUniformBuffersMappeds.resize(i + 1);
+        objectDescriptorPools.resize(i + 1);
+        objectDescriptorSets.resize(i + 1);
+
+        objectMeshIDs[i] = meshID;
+        objectShaderIDs[i] = shaderID;
+        createUniformBuffers(objectUniformBuffers[i], objectUniformBuffersMemorys[i], objectUniformBuffersMappeds[i]);
+        createDescriptorPool(objectDescriptorPools[i], textureIDs.size());
+        createDescriptorSets(objectDescriptorSets[i], objectDescriptorPools[i], shaderDescriptorSetLayouts[shaderID], objectUniformBuffers[i], textureIDs);
+        return i;
     }
 
     std::vector<ObjectID> addModel(Model model, std::string vertShaderFilePath, std::string fragShaderFilePath) {
@@ -120,9 +132,9 @@ namespace MZ {
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        for (size_t i = 0; i < numObjects; i++)
+        for (size_t i = 0; i < objectDescriptorPools.size(); i++)
         {
-            updateUniformBuffer(objects[i], currentFrame);
+            updateUniformBuffer(i, currentFrame);
         }
 
         vkResetFences(device, 1, &inFlightFences[currentFrame]);
@@ -230,19 +242,19 @@ namespace MZ {
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 
-        for (size_t i = 0; i < numObjects; i++)
+        for (size_t i = 0; i < objectDescriptorPools.size(); i++)
         {
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaders[objects[i].shaderID].graphicsPipeline);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[objectShaderIDs[i]]);
 
-            VkBuffer vertexBuffers[] = { meshes[objects[i].meshID].vertexBuffer };
+            VkBuffer vertexBuffers[] = { meshVertexBuffers[objectMeshIDs[i]] };
             VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-            vkCmdBindIndexBuffer(commandBuffer, meshes[objects[i].meshID].indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindIndexBuffer(commandBuffer, meshIndexBuffers[objectMeshIDs[i]], 0, VK_INDEX_TYPE_UINT32);
 
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaders[objects[i].shaderID].pipelineLayout, 0, 1, &objects[i].descriptorSets[currentFrame], 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[objectShaderIDs[i]], 0, 1, &objectDescriptorSets[i][currentFrame], 0, nullptr);
 
-            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshes[objects[i].meshID].indicesSize), 1, 0, 0, 0);
+            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshIndicesSizes[objectMeshIDs[i]]), 1, 0, 0, 0);
         }
 
         vkCmdEndRenderPass(commandBuffer);
@@ -272,29 +284,64 @@ namespace MZ {
         createFramebuffers();
     }
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, int numTextures)
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures)
     {
-        createDescriptorSetLayout(shaders[numShaders].descriptorSetLayout,numTextures);
-        createGraphicsPipline(vertShaderPath, fragShaderPath, shaders[numShaders].pipelineLayout, shaders[numShaders].graphicsPipeline, shaders[numShaders].descriptorSetLayout);
+        std::string stringInfo = vertShaderPath + fragShaderPath + (char)numTextures;
+        if (shaderInfoToID.find(stringInfo) != shaderInfoToID.end()) return shaderInfoToID[stringInfo];
+        int i = shaderGraphicsPipelines.size();
+        shaderInfoToID[stringInfo] = i;
 
-        numShaders++;
-        return numShaders - 1;
+        shaderGraphicsPipelines.resize(i+1);
+        shaderDescriptorSetLayouts.resize(i + 1);
+        shaderPipelineLayouts.resize(i + 1);
+
+        createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures);
+        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i]);
+
+        return i;
     }
 
     MeshID createMesh(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices)
     {
-        createVertexBuffer(*vertices, meshes[numMeshes].vertexBuffer, meshes[numMeshes].vertexBufferMemory);
-        createIndexBuffer(*indices, meshes[numMeshes].indexBuffer, meshes[numMeshes].indexBufferMemory);
-        meshes[numMeshes].indicesSize = indices->size();
-        numMeshes++;
-        return numMeshes - 1;
+        std::string meshInfo = makeMeshInfo(vertices, indices);
+        if (meshInfoToID.find(meshInfo) != meshInfoToID.end()) return meshInfoToID[meshInfo];
+        int i = meshVertexBuffers.size();
+        meshInfoToID[meshInfo] = i;
+        meshVertexBuffers.resize(i+1);
+        meshVertexBufferMemorys.resize(i + 1);
+        meshIndexBuffers.resize(i + 1);
+        meshIndexBufferMemorys.resize(i + 1);
+        meshIndicesSizes.resize(i + 1);
+
+        createVertexBuffer(*vertices, meshVertexBuffers[i], meshVertexBufferMemorys[i]);
+        createIndexBuffer(*indices, meshIndexBuffers[i], meshIndexBufferMemorys[i]);
+        meshIndicesSizes[i] = indices->size();
+        return i;
+    }
+
+    // this meshinfo thing is fundamentally flawed but it works basiclly all the time
+    std::string makeMeshInfo(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices) {
+        return std::to_string((uintptr_t)vertices) + std::to_string((uintptr_t)indices) + std::to_string(vertices->size()) + std::to_string(indices->size())
+            + std::to_string((*vertices)[vertices->size()/2].Position.x + (*vertices)[vertices->size() / 4].Position.y - (*vertices)[vertices->size() - 1].Position.z)
+            + std::to_string((*vertices)[0].Position.x + (*vertices)[vertices->size() - 1].Position.y - (*vertices)[vertices->size() / 2].Position.z)
+            + std::to_string((*vertices)[vertices->size() - 1].Position.x + (*vertices)[0].Position.y - (*vertices)[vertices->size() / 4].Position.z)
+            + std::to_string((*indices)[indices->size() - 1] + (*indices)[0] - (*indices)[indices->size() / 4])
+          ;
     }
 
     TextureID createTexture(std::string textureFilepath) {
-        int i = numTextures;
-        numTextures++;
-        createTextureImage(textureFilepath, textures[i].textureImageMemory,textures[i].textureImage, textures[i].textureImageView);
-        createTextureSampler(textures[i].textureSampler);
+
+        if (texturepathToID.find(textureFilepath) != texturepathToID.end()) return texturepathToID[textureFilepath];
+        int i = textureImages.size();
+
+        texturepathToID[textureFilepath] = i;
+        textureImages.resize(i+1);
+        textureImageMemorys.resize(i+1);
+        textureImageViews.resize(i + 1);
+        textureSamplers.resize(i + 1);
+
+        createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
+        createTextureSampler(textureSamplers[i]);
         return i;
     }
 
@@ -558,7 +605,7 @@ namespace MZ {
     }
 
 
-    void updateUniformBuffer(VulkanRenderObject object, uint32_t currentImage)
+    void updateUniformBuffer(ObjectID objectID, uint32_t currentImage)
     {
         static auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -571,7 +618,7 @@ namespace MZ {
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
 
-        memcpy(object.uniformBuffersMapped[currentImage].pMappedData, &ubo, sizeof(ubo));
+        memcpy(objectUniformBuffersMappeds[objectID][currentImage].pMappedData, &ubo, sizeof(ubo));
     }
 
     void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures)
@@ -620,8 +667,8 @@ namespace MZ {
             for (size_t i = 0; i < textureIDs.size(); i++)
             {
                 imageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                imageInfo[i].imageView = textures[textureIDs[i]].textureImageView;
-                imageInfo[i].sampler = textures[textureIDs[i]].textureSampler;
+                imageInfo[i].imageView = textureImageViews[textureIDs[i]];
+                imageInfo[i].sampler = textureSamplers[textureIDs[i]];
             }
 
             std::vector<VkWriteDescriptorSet> descriptorWrites(textureIDs.size() + 1);

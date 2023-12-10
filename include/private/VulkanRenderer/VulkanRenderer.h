@@ -1,20 +1,15 @@
 #pragma once
-#define VULKANRENDERER
 #ifdef VULKANRENDERER
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
 #include <pch.h>
-#include <Vertex.h>
+#include <Mesmerize/Vertex.h>
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <VulkanRenderer/VulkanEXT.h>
-#include <VulkanRenderer/VulkanMesh.h>
-#include <VulkanRenderer/VulkanRenderObject.h>
-#include <VulkanRenderer/VulkanShader.h>
-#include <VulkanRenderer/VulkanTexture.h>
 #include <stb_image.h>
 
 
@@ -88,15 +83,36 @@ namespace MZ {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
-#define MAXVULKANSTUFF 100
-    VulkanRenderObject objects[MAXVULKANSTUFF];
-    uint16_t numObjects;
-    VulkanShader shaders[MAXVULKANSTUFF];
-    uint16_t numShaders;
-    VulkanMesh meshes[MAXVULKANSTUFF];
-    uint16_t numMeshes;
-    VulkanTexture textures[MAXVULKANSTUFF];
-    uint16_t numTextures;
+    // should be index by ObjectID
+    std::vector<MeshID> objectMeshIDs;
+    std::vector<ShaderID> objectShaderIDs;
+    std::vector<VkDescriptorPool> objectDescriptorPools;
+    std::vector<std::vector<VkDescriptorSet>> objectDescriptorSets;
+    std::vector<std::vector<VkBuffer>> objectUniformBuffers;
+    std::vector<std::vector<VmaAllocation>> objectUniformBuffersMemorys;
+    std::vector<std::vector<VmaAllocationInfo>> objectUniformBuffersMappeds;
+
+    // should be index by ShaderID
+    std::vector<VkPipelineLayout> shaderPipelineLayouts;
+    std::vector<VkPipeline> shaderGraphicsPipelines;
+    std::vector<VkDescriptorSetLayout> shaderDescriptorSetLayouts;
+    std::unordered_map<std::string, ShaderID> shaderInfoToID;
+
+    // should be index by MeshID
+    std::vector<VkBuffer> meshVertexBuffers;
+    std::vector<VmaAllocation> meshVertexBufferMemorys;
+    std::vector<VkBuffer> meshIndexBuffers;
+    std::vector<VmaAllocation> meshIndexBufferMemorys;
+    std::vector<uint32_t> meshIndicesSizes;
+    std::unordered_map<std::string, MeshID> meshInfoToID;
+
+
+    // should be index by TextureID
+    std::vector<VkImage> textureImages;
+    std::vector<VmaAllocation> textureImageMemorys;
+    std::vector<VkImageView> textureImageViews;
+    std::vector<VkSampler> textureSamplers;
+    std::unordered_map<std::string, TextureID> texturepathToID;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -112,7 +128,7 @@ namespace MZ {
 
     void cleanupSwapChain();
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, int numTextures);
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures);
 
     MeshID createMesh(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);
 
@@ -130,7 +146,7 @@ namespace MZ {
 
     bool hasStencilComponent(VkFormat format);
 
-    void updateUniformBuffer(VulkanRenderObject object, uint32_t currentImage);
+    void updateUniformBuffer(ObjectID objectID, uint32_t currentImage);
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
@@ -160,10 +176,11 @@ namespace MZ {
 
     VkShaderModule createShaderModule(const std::vector<char>& code);
 
+    std::string makeMeshInfo(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);     // this meshinfo thing is fundamentally flawed but it works basiclly all the time
+
     void createSyncObjects();
 
     void createCommandBuffers();
-
 
     void createFramebuffers();
 

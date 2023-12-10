@@ -1,9 +1,9 @@
 ﻿#include <GLFW/glfw3.h>
-#include <Renderer.h>
+
+#define VULKANRENDERER
+#include <Mesmerize/Renderer.h>
 #define WIDTH 1920
 #define HEIGHT 1080
-#define VULKANRENDERER
-
 
 void main() {
 	glfwInit();
@@ -15,6 +15,7 @@ void main() {
 
 	MZ::Model m("../../../models/backpack/backpack.obj");
 
+	MZ::addModel(m, "../../../shaders/planetVert.spv", "../../../shaders/planetFrag.spv");
 	MZ::addModel(m, "../../../shaders/planetVert.spv", "../../../shaders/planetFrag.spv");
 
 	while (!glfwWindowShouldClose(window)) {
