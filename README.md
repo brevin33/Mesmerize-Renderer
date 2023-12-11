@@ -14,8 +14,16 @@ You can build the library using CMake.
 
 if you are using CMake then you can add this to your CMake by downloading this project or using git submodules and and this to your CMake
 
-....
-....
+```
+add_subdirectory(MesmerizeRenderer)
+
+...
+
+...
+
+target_link_libraries(MyApp PRIVATE MesmerizeRenderer)
+```
+
 
 
 ## How to Use
