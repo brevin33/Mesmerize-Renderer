@@ -9,7 +9,7 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
-project ("Vulkan-CMake-Template")
+project ("Mesmerize-Renderer")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -22,26 +22,26 @@ find_package(Vulkan REQUIRED)
 find_package(VulkanHeaders CONFIG)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 
-add_library(MyVulkanLib STATIC  "src/VulkanRenderer.cpp"  "include/public/Mesmerize/Vertex.h"  "src/Model.cpp")
+add_library(MesmerizeRenderer STATIC  "src/VulkanRenderer.cpp"  "include/public/Mesmerize/Vertex.h"  "src/Model.cpp")
 
 add_compile_definitions(VULKANRENDERER)
 
-target_include_directories(MyVulkanLib PRIVATE include/private)
-target_include_directories(MyVulkanLib PRIVATE include/dep)
-target_include_directories(MyVulkanLib PUBLIC include/public)
+target_include_directories(MesmerizeRenderer PRIVATE include/private)
+target_include_directories(MesmerizeRenderer PRIVATE include/dep)
+target_include_directories(MesmerizeRenderer PUBLIC include/public)
 
-target_precompile_headers(MyVulkanLib PUBLIC include/private/pch.h)
+target_precompile_headers(MesmerizeRenderer PUBLIC include/private/pch.h)
 
-target_link_libraries(MyVulkanLib PUBLIC glfw)
-target_link_libraries(MyVulkanLib PUBLIC glm::glm)
-target_link_libraries(MyVulkanLib PRIVATE imgui::imgui)
-target_link_libraries(MyVulkanLib PUBLIC assimp::assimp)
-target_link_libraries(MyVulkanLib PUBLIC Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
+target_link_libraries(MesmerizeRenderer PUBLIC glfw)
+target_link_libraries(MesmerizeRenderer PUBLIC glm::glm)
+target_link_libraries(MesmerizeRenderer PRIVATE imgui::imgui)
+target_link_libraries(MesmerizeRenderer PUBLIC assimp::assimp)
+target_link_libraries(MesmerizeRenderer PUBLIC Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET MyVulkanLib PROPERTY CXX_STANDARD 20)
+  set_property(TARGET MesmerizeRenderer PROPERTY CXX_STANDARD 20)
 endif()
 
 
-add_executable (Vulkan-CMake-Template "example/main.cpp")
-target_link_libraries(Vulkan-CMake-Template PRIVATE MyVulkanLib)
+#add_executable (Vulkan-CMake-Template "example/main.cpp")
+#target_link_libraries(Vulkan-CMake-Template PRIVATE MesmerizeRenderer)
