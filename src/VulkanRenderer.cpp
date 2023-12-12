@@ -82,15 +82,7 @@ namespace MZ {
         vkDestroyInstance(instance, nullptr);
     }
 
-    ObjectID addMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, std::string vertShaderFilePath, std::string fragShaderFilePath, std::vector<std::string> textureFilepaths){
-        MeshID meshID = createMesh(&vertices, &indices);
-        ShaderID shaderID = createShader(vertShaderFilePath, fragShaderFilePath, textureFilepaths.size());
-        std::vector<TextureID> textureIDs(textureFilepaths.size());
-        for (size_t i = 0; i < textureFilepaths.size(); i++)
-        {
-            textureIDs[i] = createTexture(textureFilepaths[i]);
-        }
-
+    ObjectID addObject(MeshID mesh, ShaderID shader, std::vector<TextureID>& textures){
         int i = objectUniformBuffers.size();
         objectUniformBuffers.resize(i+1);
         objectMeshIDs.resize(i + 1);
@@ -100,21 +92,54 @@ namespace MZ {
         objectDescriptorPools.resize(i + 1);
         objectDescriptorSets.resize(i + 1);
 
-        objectMeshIDs[i] = meshID;
-        objectShaderIDs[i] = shaderID;
+        objectMeshIDs[i] = mesh;
+        objectShaderIDs[i] = shader;
         createUniformBuffers(objectUniformBuffers[i], objectUniformBuffersMemorys[i], objectUniformBuffersMappeds[i]);
-        createDescriptorPool(objectDescriptorPools[i], textureIDs.size());
-        createDescriptorSets(objectDescriptorSets[i], objectDescriptorPools[i], shaderDescriptorSetLayouts[shaderID], objectUniformBuffers[i], textureIDs);
+        createDescriptorPool(objectDescriptorPools[i], textures.size());
+        createDescriptorSets(objectDescriptorSets[i], objectDescriptorPools[i], shaderDescriptorSetLayouts[shader], objectUniformBuffers[i], textures);
         return i;
     }
 
-    std::vector<ObjectID> addModel(Model model, std::string vertShaderFilePath, std::string fragShaderFilePath) {
-        std::vector<ObjectID> ids;
-        for (size_t i = 0; i < model.modelIndices.size(); i++)
-        {
-            ids.push_back(addMesh(model.modelVertices[i], model.modelIndices[i], vertShaderFilePath, fragShaderFilePath, model.modelTextures[i]));
-        }
-        return ids;
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures)
+    {
+        int i = shaderGraphicsPipelines.size();
+
+        shaderGraphicsPipelines.resize(i + 1);
+        shaderDescriptorSetLayouts.resize(i + 1);
+        shaderPipelineLayouts.resize(i + 1);
+
+        createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures);
+        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i]);
+
+        return i;
+    }
+
+    MeshID createMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+    {
+        int i = meshVertexBuffers.size();
+        meshVertexBuffers.resize(i + 1);
+        meshVertexBufferMemorys.resize(i + 1);
+        meshIndexBuffers.resize(i + 1);
+        meshIndexBufferMemorys.resize(i + 1);
+        meshIndicesSizes.resize(i + 1);
+
+        createVertexBuffer(vertices, meshVertexBuffers[i], meshVertexBufferMemorys[i]);
+        createIndexBuffer(indices, meshIndexBuffers[i], meshIndexBufferMemorys[i]);
+        meshIndicesSizes[i] = indices.size();
+        return i;
+    }
+
+    TextureID createTexture(std::string textureFilepath) {
+
+        int i = textureImages.size();
+        textureImages.resize(i + 1);
+        textureImageMemorys.resize(i + 1);
+        textureImageViews.resize(i + 1);
+        textureSamplers.resize(i + 1);
+
+        createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
+        createTextureSampler(textureSamplers[i]);
+        return i;
     }
 
 
@@ -282,67 +307,6 @@ namespace MZ {
         createColorResources();
         createDepthResources();
         createFramebuffers();
-    }
-
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures)
-    {
-        std::string stringInfo = vertShaderPath + fragShaderPath + (char)numTextures;
-        if (shaderInfoToID.find(stringInfo) != shaderInfoToID.end()) return shaderInfoToID[stringInfo];
-        int i = shaderGraphicsPipelines.size();
-        shaderInfoToID[stringInfo] = i;
-
-        shaderGraphicsPipelines.resize(i+1);
-        shaderDescriptorSetLayouts.resize(i + 1);
-        shaderPipelineLayouts.resize(i + 1);
-
-        createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures);
-        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i]);
-
-        return i;
-    }
-
-    MeshID createMesh(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices)
-    {
-        std::string meshInfo = makeMeshInfo(vertices, indices);
-        if (meshInfoToID.find(meshInfo) != meshInfoToID.end()) return meshInfoToID[meshInfo];
-        int i = meshVertexBuffers.size();
-        meshInfoToID[meshInfo] = i;
-        meshVertexBuffers.resize(i+1);
-        meshVertexBufferMemorys.resize(i + 1);
-        meshIndexBuffers.resize(i + 1);
-        meshIndexBufferMemorys.resize(i + 1);
-        meshIndicesSizes.resize(i + 1);
-
-        createVertexBuffer(*vertices, meshVertexBuffers[i], meshVertexBufferMemorys[i]);
-        createIndexBuffer(*indices, meshIndexBuffers[i], meshIndexBufferMemorys[i]);
-        meshIndicesSizes[i] = indices->size();
-        return i;
-    }
-
-    // this meshinfo thing is fundamentally flawed but it works basiclly all the time
-    std::string makeMeshInfo(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices) {
-        return std::to_string((uintptr_t)vertices) + std::to_string((uintptr_t)indices) + std::to_string(vertices->size()) + std::to_string(indices->size())
-            + std::to_string((*vertices)[vertices->size()/2].Position.x + (*vertices)[vertices->size() / 4].Position.y - (*vertices)[vertices->size() - 1].Position.z)
-            + std::to_string((*vertices)[0].Position.x + (*vertices)[vertices->size() - 1].Position.y - (*vertices)[vertices->size() / 2].Position.z)
-            + std::to_string((*vertices)[vertices->size() - 1].Position.x + (*vertices)[0].Position.y - (*vertices)[vertices->size() / 4].Position.z)
-            + std::to_string((*indices)[indices->size() - 1] + (*indices)[0] - (*indices)[indices->size() / 4])
-          ;
-    }
-
-    TextureID createTexture(std::string textureFilepath) {
-
-        if (texturepathToID.find(textureFilepath) != texturepathToID.end()) return texturepathToID[textureFilepath];
-        int i = textureImages.size();
-
-        texturepathToID[textureFilepath] = i;
-        textureImages.resize(i+1);
-        textureImageMemorys.resize(i+1);
-        textureImageViews.resize(i + 1);
-        textureSamplers.resize(i + 1);
-
-        createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
-        createTextureSampler(textureSamplers[i]);
-        return i;
     }
 
     void createTextureSampler(VkSampler& textureSampler) {

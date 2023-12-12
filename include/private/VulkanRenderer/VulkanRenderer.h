@@ -96,7 +96,6 @@ namespace MZ {
     std::vector<VkPipelineLayout> shaderPipelineLayouts;
     std::vector<VkPipeline> shaderGraphicsPipelines;
     std::vector<VkDescriptorSetLayout> shaderDescriptorSetLayouts;
-    std::unordered_map<std::string, ShaderID> shaderInfoToID;
 
     // should be index by MeshID
     std::vector<VkBuffer> meshVertexBuffers;
@@ -104,7 +103,6 @@ namespace MZ {
     std::vector<VkBuffer> meshIndexBuffers;
     std::vector<VmaAllocation> meshIndexBufferMemorys;
     std::vector<uint32_t> meshIndicesSizes;
-    std::unordered_map<std::string, MeshID> meshInfoToID;
 
 
     // should be index by TextureID
@@ -112,7 +110,6 @@ namespace MZ {
     std::vector<VmaAllocation> textureImageMemorys;
     std::vector<VkImageView> textureImageViews;
     std::vector<VkSampler> textureSamplers;
-    std::unordered_map<std::string, TextureID> texturepathToID;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -127,12 +124,6 @@ namespace MZ {
     void recreateSwapChain();
 
     void cleanupSwapChain();
-
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures);
-
-    MeshID createMesh(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);
-
-    TextureID createTexture(std::string textureFilepath);
 
     void createTextureSampler(VkSampler& textureSampler);
         

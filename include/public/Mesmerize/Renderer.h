@@ -1,11 +1,11 @@
 #pragma once
-#include <Mesmerize/Model.h>
+#include <Mesmerize/Vertex.h>
 namespace MZ{
     //char* GraphicsAPI;
 #ifdef VULKANRENDERER
     #define GraphicsAPI "Vulkan"
 #else
-    #define GraphicsAPI "Vulkan"
+    #define GraphicsAPI "No Valid API"
 #endif // VULKANRENDERER
 
     void setup(GLFWwindow* window);
@@ -14,9 +14,14 @@ namespace MZ{
 
     void drawFrame();
 
-    std::vector<ObjectID> addModel(Model model, std::string vertShaderFilePath, std::string fragShaderFilePath);
+    ObjectID addObject(MeshID mesh, ShaderID shader, std::vector<TextureID>& textures);
 
-    ObjectID addMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, std::string vertShaderFilePath, std::string fragShaderFilePath, std::vector<std::string> textureFilepaths = std::vector<std::string>(0));
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures);
+
+    MeshID createMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+
+    TextureID createTexture(std::string textureFilepath);
+
 
     enum GPUValueType {
         RGB32,

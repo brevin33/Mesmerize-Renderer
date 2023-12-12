@@ -16,13 +16,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 find_package(glm CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
-find_package(imgui CONFIG REQUIRED)
-find_package(assimp CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(VulkanHeaders CONFIG)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 
-add_library(MesmerizeRenderer STATIC  "src/VulkanRenderer.cpp"  "include/public/Mesmerize/Vertex.h"  "src/Model.cpp")
+add_library(MesmerizeRenderer STATIC  "src/VulkanRenderer.cpp"  "include/public/Mesmerize/Vertex.h")
 
 add_compile_definitions(VULKANRENDERER)
 
@@ -34,8 +32,7 @@ target_precompile_headers(MesmerizeRenderer PUBLIC include/private/pch.h)
 
 target_link_libraries(MesmerizeRenderer PUBLIC glfw)
 target_link_libraries(MesmerizeRenderer PUBLIC glm::glm)
-target_link_libraries(MesmerizeRenderer PRIVATE imgui::imgui)
-target_link_libraries(MesmerizeRenderer PUBLIC assimp::assimp)
+target_link_libraries(MesmerizeRenderer PRIVATE Vulkan::Vulkan)
 target_link_libraries(MesmerizeRenderer PUBLIC Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
@@ -43,5 +40,8 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 
-#add_executable (Vulkan-CMake-Template "example/main.cpp")
-#target_link_libraries(Vulkan-CMake-Template PRIVATE MesmerizeRenderer)
+# build example folder
+find_package(assimp CONFIG REQUIRED)
+add_executable (Vulkan-CMake-Template "example/main.cpp" "example/Model.cpp")
+target_link_libraries(Vulkan-CMake-Template PRIVATE MesmerizeRenderer)
+target_link_libraries(MesmerizeRenderer PUBLIC assimp::assimp)

@@ -1,9 +1,11 @@
 ﻿#include <GLFW/glfw3.h>
-
-#define VULKANRENDERER
 #include <Mesmerize/Renderer.h>
-#define WIDTH 1920
-#define HEIGHT 1080
+#include "Model.h"
+
+constexpr int WIDTH = 1920;
+constexpr int HEIGHT = 1080;
+
+
 
 void main() {
 	glfwInit();
@@ -12,11 +14,11 @@ void main() {
 
 	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, GraphicsAPI, nullptr, nullptr);
 	MZ::setup(window);
+	ShaderID shaderID = MZ::createShader("../../../shaders/planetVert.spv", "../../../shaders/planetFrag.spv", 1);
 
-	MZ::Model m("../../../models/backpack/backpack.obj");
-
-	MZ::addModel(m, "../../../shaders/planetVert.spv", "../../../shaders/planetFrag.spv");
-	MZ::addModel(m, "../../../shaders/planetVert.spv", "../../../shaders/planetFrag.spv");
+	Model m("../../../models/backpack/backpack.obj");
+	m.addToRenderer(shaderID);
+	m.unload();
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -25,5 +27,4 @@ void main() {
 
 	MZ::cleanup();
 	glfwDestroyWindow(window);
-
 }
