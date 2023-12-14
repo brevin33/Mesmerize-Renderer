@@ -95,6 +95,7 @@ namespace MZ {
     std::vector<std::vector<VkBuffer>> objectUniformBuffers;
     std::vector<std::vector<VmaAllocation>> objectUniformBuffersMemorys;
     std::vector<std::vector<VmaAllocationInfo>> objectUniformBuffersMappeds;
+    std::vector<void*> objectUBO;
 
     // should be index by ShaderID
     std::vector<VkPipelineLayout> shaderPipelineLayouts;

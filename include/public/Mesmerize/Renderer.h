@@ -22,6 +22,8 @@ namespace MZ{
 
     TextureID createTexture(std::string textureFilepath);
 
+    void updateUBO(ObjectID objectID, UniformBufferObject ubo);
+
 
     enum GPUValueType {
         RGB32,
