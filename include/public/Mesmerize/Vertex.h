@@ -6,9 +6,7 @@ namespace MZ {
 
 
     struct UniformBufferObject {
-        alignas(16) glm::mat4 model;
-        alignas(16) glm::mat4 view;
-        alignas(16) glm::mat4 proj;
+        glm::mat4 model;
     };
 
 #define MAX_BONE_INFLUENCE 4

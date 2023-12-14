@@ -27,6 +27,7 @@ namespace MZ {
         createFramebuffers();
         createCommandBuffers();
         createSyncObjects();
+        createViewAndPerspectiveBuffer();
     }
 
     void cleanup() {
@@ -60,18 +61,18 @@ namespace MZ {
         }
 
 
-        vkDestroyRenderPass(device, renderPass, nullptr);
-
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vmaDestroyBuffer(allocator,viewPerspectiveBuffer[i], viewPerspectiveBufferMemory[i]);
             vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(device, inFlightFences[i], nullptr);
         }
 
+        vkDestroyRenderPass(device, renderPass, nullptr);
+
         vkDestroyCommandPool(device, commandPool, nullptr);
 
         vmaDestroyAllocator(allocator);
-
         vkDestroyDevice(device, nullptr);
 
         if (enableValidationLayers) {
@@ -142,7 +143,6 @@ namespace MZ {
         return i;
     }
 
-
     void drawFrame() {
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -157,6 +157,7 @@ namespace MZ {
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
+        updateCamera();
         for (size_t i = 0; i < objectDescriptorPools.size(); i++)
         {
             updateUniformBuffer(i, currentFrame);
@@ -267,7 +268,7 @@ namespace MZ {
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 
-        for (size_t i = 0; i < objectDescriptorPools.size(); i++)
+        for (size_t i = 0; i < objectDescriptorPools.size() - 1; i++)
         {
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[objectShaderIDs[i]]);
 
@@ -497,6 +498,14 @@ namespace MZ {
         endSingleTimeCommands(commandBuffer);
     }
 
+    void updateCamera() {
+        glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+        proj[1][1] *= -1;
+        view = proj * view;
+        memcpy(viewPerspectiveBufferMapped[currentFrame].pMappedData, &view, sizeof(view));
+    }
+
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels) {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
@@ -578,19 +587,18 @@ namespace MZ {
 
         UniformBufferObject ubo{};
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-        ubo.proj[1][1] *= -1;
 
         memcpy(objectUniformBuffersMappeds[objectID][currentImage].pMappedData, &ubo, sizeof(ubo));
     }
 
     void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures)
     {
-        std::vector<VkDescriptorPoolSize> poolSizes(numTextures+1);
+        std::vector<VkDescriptorPoolSize> poolSizes(numTextures+2);
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        for (size_t i = 1; i <= numTextures; i++)
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        for (size_t i = 2; i <= numTextures + 1; i++)
         {
             poolSizes[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             poolSizes[i].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
@@ -627,6 +635,11 @@ namespace MZ {
             bufferInfo.offset = 0;
             bufferInfo.range = sizeof(UniformBufferObject);
 
+            VkDescriptorBufferInfo viewPerspectiveBufferInfo{};
+            viewPerspectiveBufferInfo.buffer = viewPerspectiveBuffer[j];
+            viewPerspectiveBufferInfo.offset = 0;
+            viewPerspectiveBufferInfo.range = sizeof(glm::mat4);
+
             std::vector<VkDescriptorImageInfo> imageInfo(textureIDs.size());
             for (size_t i = 0; i < textureIDs.size(); i++)
             {
@@ -635,7 +648,7 @@ namespace MZ {
                 imageInfo[i].sampler = textureSamplers[textureIDs[i]];
             }
 
-            std::vector<VkWriteDescriptorSet> descriptorWrites(textureIDs.size() + 1);
+            std::vector<VkWriteDescriptorSet> descriptorWrites(textureIDs.size() + 2);
 
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[0].dstSet = descriptorSets[j];
@@ -645,7 +658,15 @@ namespace MZ {
             descriptorWrites[0].descriptorCount = 1;
             descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-            for (size_t i = 1; i <= textureIDs.size(); i++)
+            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[1].dstSet = descriptorSets[j];
+            descriptorWrites[1].dstBinding = 1;
+            descriptorWrites[1].dstArrayElement = 0;
+            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[1].descriptorCount = 1;
+            descriptorWrites[1].pBufferInfo = &viewPerspectiveBufferInfo;
+
+            for (size_t i = 2; i <= textureIDs.size() + 1; i++)
             {
                 descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 descriptorWrites[i].dstSet = descriptorSets[j];
@@ -653,7 +674,7 @@ namespace MZ {
                 descriptorWrites[i].dstArrayElement = 0;
                 descriptorWrites[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                 descriptorWrites[i].descriptorCount = 1;
-                descriptorWrites[i].pImageInfo = &imageInfo[i-1];
+                descriptorWrites[i].pImageInfo = &imageInfo[i-2];
             }
 
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
@@ -671,6 +692,18 @@ namespace MZ {
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i], PersitantMapping, &uniformBuffersMapped[i]);
         }
+    }
+
+    void createViewAndPerspectiveBuffer() {
+        VkDeviceSize bufferSize = sizeof(glm::mat4x4);
+        viewPerspectiveBuffer.resize(MAX_FRAMES_IN_FLIGHT);
+        viewPerspectiveBufferMemory.resize(MAX_FRAMES_IN_FLIGHT);
+        viewPerspectiveBufferMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, viewPerspectiveBuffer[i], viewPerspectiveBufferMemory[i], PersitantMapping, &viewPerspectiveBufferMapped[i]);
+        }
+
     }
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout)
@@ -806,18 +839,26 @@ namespace MZ {
         uboLayoutBinding.pImmutableSamplers = nullptr;
         uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-        std::vector<VkDescriptorSetLayoutBinding> bindings(numTextures+1);
+        VkDescriptorSetLayoutBinding viewPerspectiveLayoutBinding{};
+        viewPerspectiveLayoutBinding.binding = 1;
+        viewPerspectiveLayoutBinding.descriptorCount = 1;
+        viewPerspectiveLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        viewPerspectiveLayoutBinding.pImmutableSamplers = nullptr;
+        viewPerspectiveLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        std::vector<VkDescriptorSetLayoutBinding> bindings(numTextures+2);
         bindings[0] = uboLayoutBinding;
+        bindings[1] = viewPerspectiveLayoutBinding;
 
         std::vector<VkDescriptorSetLayoutBinding> samplerLayoutBinding(numTextures);
         for (size_t i = 0; i < numTextures; i++)
         {
-            samplerLayoutBinding[i].binding = i + 1;
+            samplerLayoutBinding[i].binding = i + 2;
             samplerLayoutBinding[i].descriptorCount = 1;
             samplerLayoutBinding[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             samplerLayoutBinding[i].pImmutableSamplers = nullptr;
             samplerLayoutBinding[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-            bindings[i + 1] = samplerLayoutBinding[i];
+            bindings[i + 2] = samplerLayoutBinding[i];
         }
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};

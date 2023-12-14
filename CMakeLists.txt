@@ -41,7 +41,7 @@ endif()
 
 
 # build example folder
-#find_package(assimp CONFIG REQUIRED)
-#add_executable (Vulkan-CMake-Template "example/main.cpp" "example/Model.cpp")
-#target_link_libraries(Vulkan-CMake-Template PRIVATE MesmerizeRenderer)
-#target_link_libraries(MesmerizeRenderer PUBLIC assimp::assimp)
+find_package(assimp CONFIG REQUIRED)
+add_executable (example "example/main.cpp" "example/Model.cpp")
+target_link_libraries(example PRIVATE MesmerizeRenderer)
+target_link_libraries(MesmerizeRenderer PUBLIC assimp::assimp)

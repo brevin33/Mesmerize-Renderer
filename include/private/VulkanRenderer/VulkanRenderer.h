@@ -79,6 +79,10 @@ namespace MZ {
     VkImageView colorImageView;
     VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    std::vector<VkBuffer> viewPerspectiveBuffer;
+    std::vector<VmaAllocation> viewPerspectiveBufferMemory;
+    std::vector<VmaAllocationInfo> viewPerspectiveBufferMapped;
+
     const std::vector<const char*> deviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
@@ -137,11 +141,15 @@ namespace MZ {
 
     bool hasStencilComponent(VkFormat format);
 
+    void updateCamera();
+
     void updateUniformBuffer(ObjectID objectID, uint32_t currentImage);
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
     void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VmaAllocation>& uniformBuffersMemory, std::vector<VmaAllocationInfo>& uniformBuffersMapped);
+
+    void createViewAndPerspectiveBuffer();
 
     void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures);
 
