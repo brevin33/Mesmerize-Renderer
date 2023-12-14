@@ -8,6 +8,7 @@ namespace MZ{
     #define GraphicsAPI "No Valid API"
 #endif // VULKANRENDERER
 
+
     void setup(GLFWwindow* window);
 
     void cleanup();
@@ -16,19 +17,12 @@ namespace MZ{
 
     ObjectID addObject(MeshID mesh, ShaderID shader, std::vector<TextureID>& textures);
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures);
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize);
 
     MeshID createMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 
     TextureID createTexture(std::string textureFilepath);
 
-    void updateUBO(ObjectID objectID, UniformBufferObject ubo);
-
-
-    enum GPUValueType {
-        RGB32,
-        RG32,
-    };
-
+    void updateUBO(ObjectID objectID, void* ubo);
 
 }

@@ -101,6 +101,7 @@ namespace MZ {
     std::vector<VkPipelineLayout> shaderPipelineLayouts;
     std::vector<VkPipeline> shaderGraphicsPipelines;
     std::vector<VkDescriptorSetLayout> shaderDescriptorSetLayouts;
+    std::vector<int> shaderUboSize;
 
     // should be index by MeshID
     std::vector<VkBuffer> meshVertexBuffers;
@@ -142,19 +143,17 @@ namespace MZ {
 
     bool hasStencilComponent(VkFormat format);
 
-    void updateCamera();
+    void updateCamera(uint32_t renderingFrame);
 
-    void updateUniformBuffer(ObjectID objectID, uint32_t currentImage);
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t renderFrame);
 
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
-
-    void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VmaAllocation>& uniformBuffersMemory, std::vector<VmaAllocationInfo>& uniformBuffersMapped);
+    void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VmaAllocation>& uniformBuffersMemory, std::vector<VmaAllocationInfo>& uniformBuffersMapped, VkDeviceSize bufferSize);
 
     void createViewAndPerspectiveBuffer();
 
     void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures);
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkBuffer>& uniformBuffers, std::vector<TextureID>& textureIDs);
+    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkBuffer>& uniformBuffers, std::vector<TextureID>& textureIDs, VkDeviceSize uboSize);
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout);
 

@@ -95,20 +95,23 @@ namespace MZ {
 
         objectMeshIDs[i] = mesh;
         objectShaderIDs[i] = shader;
-        createUniformBuffers(objectUniformBuffers[i], objectUniformBuffersMemorys[i], objectUniformBuffersMappeds[i]);
+        createUniformBuffers(objectUniformBuffers[i], objectUniformBuffersMemorys[i], objectUniformBuffersMappeds[i], shaderUboSize[shader]);
         createDescriptorPool(objectDescriptorPools[i], textures.size());
-        createDescriptorSets(objectDescriptorSets[i], objectDescriptorPools[i], shaderDescriptorSetLayouts[shader], objectUniformBuffers[i], textures);
+        createDescriptorSets(objectDescriptorSets[i], objectDescriptorPools[i], shaderDescriptorSetLayouts[shader], objectUniformBuffers[i], textures, shaderUboSize[shader]);
         return i;
     }
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures)
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize)
     {
         int i = shaderGraphicsPipelines.size();
 
         shaderGraphicsPipelines.resize(i + 1);
         shaderDescriptorSetLayouts.resize(i + 1);
         shaderPipelineLayouts.resize(i + 1);
+        shaderUboSize.resize(i+1);
 
+
+        shaderUboSize[i] = uboSize;
         createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures);
         createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i]);
 
@@ -143,15 +146,18 @@ namespace MZ {
         return i;
     }
 
-    void updateUBO(ObjectID objectID, UniformBufferObject ubo) {
-        memcpy(objectUniformBuffersMappeds[objectID][currentFrame].pMappedData, &ubo, sizeof(ubo));
+    void updateUBO(ObjectID objectID, void* ubo) {
+        memcpy(objectUniformBuffersMappeds[objectID][currentFrame].pMappedData, ubo, shaderUboSize[objectShaderIDs[objectID]]);
     }
 
     void drawFrame() {
-        vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
+        vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
         uint32_t imageIndex;
         VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+        uint32_t renderingFrame = currentFrame;
+        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             recreateSwapChain();
@@ -161,34 +167,37 @@ namespace MZ {
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        updateCamera();
-        for (size_t i = 0; i < objectDescriptorPools.size(); i++)
-        {
-            updateUniformBuffer(i, currentFrame);
-        }
+        updateCamera(renderingFrame);
 
-        vkResetFences(device, 1, &inFlightFences[currentFrame]);
+        // this allows for updateUBO to not be called by user every frame not sure if I want to have this tho
+        //
+        //for (size_t i = 0; i < objectDescriptorPools.size(); i++)
+        //{
+        //    memcpy(objectUniformBuffersMappeds[i][currentFrame].pMappedData, objectUniformBuffersMappeds[i][renderingFrame].pMappedData, sizeof(UniformBufferObject));
+        //}
 
-        vkResetCommandBuffer(commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
-        recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
+        vkResetFences(device, 1, &inFlightFences[renderingFrame]);
+
+        vkResetCommandBuffer(commandBuffers[renderingFrame], /*VkCommandBufferResetFlagBits*/ 0);
+        recordCommandBuffer(commandBuffers[renderingFrame], imageIndex, renderingFrame);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
+        VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[renderingFrame] };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
 
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
+        submitInfo.pCommandBuffers = &commandBuffers[renderingFrame];
 
-        VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
+        VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[renderingFrame] };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[renderingFrame]) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
@@ -213,8 +222,6 @@ namespace MZ {
         else if (result != VK_SUCCESS) {
             throw std::runtime_error("failed to present swap chain image!");
         }
-
-        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
     //----------------------------------------------------------------------------- PRIVATE ---------------------------------------------------- PRIVATE ----------------------------------------------------------------
@@ -231,7 +238,7 @@ namespace MZ {
         vmaCreateAllocator(&allocatorCreateInfo, &allocator);
     }
 
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t renderFrame)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -282,7 +289,7 @@ namespace MZ {
 
             vkCmdBindIndexBuffer(commandBuffer, meshIndexBuffers[objectMeshIDs[i]], 0, VK_INDEX_TYPE_UINT32);
 
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[objectShaderIDs[i]], 0, 1, &objectDescriptorSets[i][currentFrame], 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[objectShaderIDs[i]], 0, 1, &objectDescriptorSets[i][renderFrame], 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshIndicesSizes[objectMeshIDs[i]]), 1, 0, 0, 0);
         }
@@ -502,12 +509,12 @@ namespace MZ {
         endSingleTimeCommands(commandBuffer);
     }
 
-    void updateCamera() {
+    void updateCamera(uint32_t renderingFrame) {
         glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
         proj[1][1] *= -1;
         view = proj * view;
-        memcpy(viewPerspectiveBufferMapped[currentFrame].pMappedData, &view, sizeof(view));
+        memcpy(viewPerspectiveBufferMapped[renderingFrame].pMappedData, &view, sizeof(view));
     }
 
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels) {
@@ -581,12 +588,6 @@ namespace MZ {
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     }
 
-
-    void updateUniformBuffer(ObjectID objectID, uint32_t currentImage)
-    {
-        memcpy(objectUniformBuffersMappeds[objectID][(currentImage+1)%MAX_FRAMES_IN_FLIGHT].pMappedData, objectUniformBuffersMappeds[objectID][currentImage].pMappedData, sizeof(UniformBufferObject));
-    }
-
     void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures)
     {
         std::vector<VkDescriptorPoolSize> poolSizes(numTextures+2);
@@ -611,7 +612,7 @@ namespace MZ {
         }
     }
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkBuffer>& uniformBuffers, std::vector<TextureID>& textureIDs)
+    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkBuffer>& uniformBuffers, std::vector<TextureID>& textureIDs, VkDeviceSize uboSize)
     {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -629,7 +630,7 @@ namespace MZ {
             VkDescriptorBufferInfo bufferInfo{};
             bufferInfo.buffer = uniformBuffers[j];
             bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject);
+            bufferInfo.range = uboSize;
 
             VkDescriptorBufferInfo viewPerspectiveBufferInfo{};
             viewPerspectiveBufferInfo.buffer = viewPerspectiveBuffer[j];
@@ -677,10 +678,9 @@ namespace MZ {
         }
     }
 
-    void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VmaAllocation>& uniformBuffersMemory, std::vector<VmaAllocationInfo>& uniformBuffersMapped)
-    {
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
+    void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VmaAllocation>& uniformBuffersMemory, std::vector<VmaAllocationInfo>& uniformBuffersMapped, VkDeviceSize bufferSize)
+    {
         uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
         uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
         uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);

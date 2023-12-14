@@ -5,10 +5,6 @@
 namespace MZ {
 
 
-    struct UniformBufferObject {
-        glm::mat4 model;
-    };
-
 #define MAX_BONE_INFLUENCE 4
     struct Vertex
     {
