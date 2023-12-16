@@ -13,7 +13,7 @@
 #include <Mesmerize/Renderer.h>
 
 
-
+#define MAX_COMMANDS 200
 
 namespace MZ {
 
@@ -31,6 +31,15 @@ namespace MZ {
         std::vector<VkSurfaceFormatKHR> formats;
         std::vector<VkPresentModeKHR> presentModes;
     };
+
+    struct VkDrawIndexedIndirectCommand {
+        uint32_t    indexCount;
+        uint32_t    instanceCount;
+        uint32_t    firstIndex;
+        int32_t     vertexOffset;
+        uint32_t    firstInstance;
+    };
+
 
     enum BufferMappingType {
         NoMapping,
@@ -64,6 +73,10 @@ namespace MZ {
     VkCommandPool commandPool;
 
     std::vector<VkCommandBuffer> commandBuffers;
+
+    std::vector<VkBuffer> drawCommandBuffer;
+    std::vector<VmaAllocation> drawCommandBufferMemory;
+    std::vector<VmaAllocationInfo> drawCommandBufferMapped;
 
     VkImage depthImage;
     VmaAllocation depthImageMemory;
@@ -127,6 +140,8 @@ namespace MZ {
     "VK_LAYER_KHRONOS_validation"
     };
 
+    void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame);
+
     void recreateSwapChain();
 
     void cleanupSwapChain();
@@ -150,6 +165,8 @@ namespace MZ {
     void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VmaAllocation>& uniformBuffersMemory, std::vector<VmaAllocationInfo>& uniformBuffersMapped, VkDeviceSize bufferSize);
 
     void createViewAndPerspectiveBuffer();
+
+    void createDrawCommandBuffer();
 
     void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures);
 

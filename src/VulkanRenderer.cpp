@@ -27,6 +27,7 @@ namespace MZ {
         createCommandBuffers();
         createSyncObjects();
         createViewAndPerspectiveBuffer();
+        createDrawCommandBuffer();
     }
 
     void cleanup() {
@@ -62,13 +63,16 @@ namespace MZ {
 
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vmaDestroyBuffer(allocator, drawCommandBuffer[i], drawCommandBufferMemory[i]);
             vmaDestroyBuffer(allocator,viewPerspectiveBuffer[i], viewPerspectiveBufferMemory[i]);
+            
             vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(device, inFlightFences[i], nullptr);
         }
 
         vkDestroyRenderPass(device, renderPass, nullptr);
+
 
         vkDestroyCommandPool(device, commandPool, nullptr);
 
@@ -228,6 +232,41 @@ namespace MZ {
 
     //----------------------------------------------------------------------------- PRIVATE ---------------------------------------------------- PRIVATE ----------------------------------------------------------------
 
+    void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame) {
+        VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[renderFrame].pMappedData;
+        for (size_t i = 0; i < objectDescriptorPools.size() - 1; i++) {
+            drawCommands[i].indexCount = meshIndicesSizes[objectMeshIDs[i]];
+            drawCommands[i].instanceCount = 1;
+            drawCommands[i].firstIndex = 0;
+            drawCommands[i].vertexOffset = 0;
+            drawCommands[i].firstInstance = i;
+        }
+
+
+        //drawing
+        for (size_t i = 0; i < objectDescriptorPools.size() - 1; i++)
+        {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[objectShaderIDs[i]]);
+
+            VkBuffer vertexBuffers[] = { meshVertexBuffers[objectMeshIDs[i]] };
+            VkDeviceSize offsets[] = { 0 };
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+            vkCmdBindIndexBuffer(commandBuffer, meshIndexBuffers[objectMeshIDs[i]], 0, VK_INDEX_TYPE_UINT32);
+
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[objectShaderIDs[i]], 0, 1, &objectDescriptorSets[i][renderFrame], 0, nullptr);
+
+            // ------------------------------------------------------------------------------------------------------------------------might want to compact drawcalls-----------------------------------------------------------------------------------------------------------------
+
+            VkDeviceSize indirect_offset = i * sizeof(VkDrawIndexedIndirectCommand);
+            uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
+
+
+            vkCmdDrawIndexedIndirect(commandBuffer, drawCommandBuffer[renderFrame], indirect_offset, 1, draw_stride);
+        }
+    }
+
+
     void createVmaAllocator() {
 
         VmaAllocatorCreateInfo allocatorCreateInfo = {};
@@ -281,20 +320,7 @@ namespace MZ {
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 
-        for (size_t i = 0; i < objectDescriptorPools.size() - 1; i++)
-        {
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[objectShaderIDs[i]]);
-
-            VkBuffer vertexBuffers[] = { meshVertexBuffers[objectMeshIDs[i]] };
-            VkDeviceSize offsets[] = { 0 };
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-
-            vkCmdBindIndexBuffer(commandBuffer, meshIndexBuffers[objectMeshIDs[i]], 0, VK_INDEX_TYPE_UINT32);
-
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[objectShaderIDs[i]], 0, 1, &objectDescriptorSets[i][renderFrame], 0, nullptr);
-
-            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshIndicesSizes[objectMeshIDs[i]]), 1, 0, 0, 0);
-        }
+        drawObjects(commandBuffer,renderFrame);
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -583,6 +609,16 @@ namespace MZ {
         );
 
         endSingleTimeCommands(commandBuffer);
+    }
+
+    void createDrawCommandBuffer() {
+        drawCommandBuffer.resize(MAX_FRAMES_IN_FLIGHT);
+        drawCommandBufferMemory.resize(MAX_FRAMES_IN_FLIGHT);
+        drawCommandBufferMapped.resize(MAX_FRAMES_IN_FLIGHT);
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        {
+            createBuffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, drawCommandBuffer[i], drawCommandBufferMemory[i], PersitantMapping, &drawCommandBufferMapped[i]);
+        }
     }
 
 

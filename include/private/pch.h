@@ -18,8 +18,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
-#include <assimp/ObjMaterial.h>
-
 #define STB_IMAGE_IMPLEMENTATION
 
 #include <iostream>
