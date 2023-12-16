@@ -20,7 +20,7 @@ find_package(Vulkan REQUIRED)
 find_package(VulkanHeaders CONFIG)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 
-add_library(MesmerizeRenderer STATIC  "src/VulkanRenderer.cpp"  "include/public/Mesmerize/Vertex.h")
+add_library(MesmerizeRenderer STATIC  "src/VulkanRenderer.cpp" )
 
 add_compile_definitions(VULKANRENDERER)
 

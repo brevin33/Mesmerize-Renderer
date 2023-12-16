@@ -7,7 +7,7 @@ void Model::unload() {
 };
 
 Model::Model(std::string modelFilePath) {
-	modelVertices = std::vector<std::vector<MZ::Vertex>>(0);
+	modelVertices = std::vector<std::vector<Vertex>>(0);
 	modelIndices = std::vector<std::vector<uint32_t>>(0);
 	modelTextures = std::vector<std::vector<std::string>>(0);
 
@@ -37,7 +37,7 @@ Model::Model(std::string modelFilePath) {
     meshIDs = std::vector<MeshID>(modelVertices.size());
     for (size_t i = 0; i < modelVertices.size(); i++)
     {
-        meshIDs[i] = MZ::createMesh(modelVertices[i], modelIndices[i]);
+        meshIDs[i] = MZ::createMesh(modelVertices[i].data(), modelIndices[i], modelVertices[i].size(), sizeof(modelVertices[i][0]));
     }
 }
 
@@ -65,13 +65,13 @@ void Model::processNode(aiNode* node, const aiScene* scene)
 }
 
 void Model::processMesh(aiMesh* mesh, const aiScene* scene) {
-    std::vector<MZ::Vertex> vertices;
+    std::vector<Vertex> vertices;
     std::vector<unsigned int> indices;
     std::vector<std::string> textures;
 
     for (unsigned int i = 0; i < mesh->mNumVertices; i++)
     {
-        MZ::Vertex vertex;
+        Vertex vertex;
         glm::vec3 vector;
 
         vector.x = mesh->mVertices[i].x;

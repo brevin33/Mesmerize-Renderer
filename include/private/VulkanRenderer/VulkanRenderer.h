@@ -5,12 +5,12 @@
 #include "vk_mem_alloc.h"
 
 #include <pch.h>
-#include <Mesmerize/Vertex.h>
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <VulkanRenderer/VulkanEXT.h>
 #include <stb_image.h>
+#include <Mesmerize/Renderer.h>
 
 
 
@@ -155,13 +155,13 @@ namespace MZ {
 
     void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkBuffer>& uniformBuffers, std::vector<TextureID>& textureIDs, VkDeviceSize uboSize);
 
-    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout);
+    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VertexValueType>& vertexValues);
 
     void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures);
 
     void createIndexBuffer(std::vector<uint32_t>& indices, VkBuffer& indexBuffer, VmaAllocation& indexBufferMemory);
 
-    void createVertexBuffer(std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VmaAllocation& vertexBufferMemory);
+    void createVertexBuffer(void* vertices, VkBuffer& vertexBuffer, VmaAllocation& vertexBufferMemory, VkDeviceSize bufferSize);
 
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
@@ -171,13 +171,19 @@ namespace MZ {
 
     void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
+    uint32_t getOffsetVertexValue(VertexValueType vertexValue);
+
+    VkVertexInputBindingDescription getBindingDescription(std::vector<VertexValueType>& VertexValues);
+
+    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(std::vector<VertexValueType>& VertexValues);
+
     static std::vector<char> readFile(const std::string& filename);
 
     VkShaderModule createShaderModule(const std::vector<char>& code);
 
-    std::string makeMeshInfo(std::vector<Vertex>* vertices, std::vector<uint32_t>* indices);     // this meshinfo thing is fundamentally flawed but it works basiclly all the time
-
     void createSyncObjects();
+
+    void createVmaAllocator();
 
     void createCommandBuffers();
 

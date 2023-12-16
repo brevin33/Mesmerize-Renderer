@@ -1,6 +1,5 @@
 ﻿#include <GLFW/glfw3.h>
 #include <Mesmerize/Renderer.h>
-#include <Mesmerize/Vertex.h>
 #include "Model.h"
 
 constexpr int WIDTH = 1920;
@@ -30,11 +29,13 @@ void main() {
 
 	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, GraphicsAPI, nullptr, nullptr);
 	MZ::setup(window);
-	ShaderID shaderID = MZ::createShader("../../../shaders/planetVert.spv", "../../../shaders/planetFrag.spv", 1, sizeof(UniformBufferObject));
+	ShaderID shaderID = MZ::createShader("../../../shaders/planetVert.spv", "../../../shaders/planetFrag.spv", 1, sizeof(UniformBufferObject), Vertex::getVertexValueTypes());
 
 	Model m("../../../models/backpack/backpack.obj");
 	std::vector<ObjectID> backpack = m.addToRenderer(shaderID);
 	m.unload();
+
+	auto i = sizeof(Vertex);
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();

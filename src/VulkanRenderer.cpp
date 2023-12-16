@@ -6,7 +6,6 @@
 
 namespace MZ {
 
-    void createVmaAllocator();
 
     //----------------------------------------------------------------------------- PUBLIC ---------------------------------------------------- PUBLIC ----------------------------------------------------------------
     void setup(GLFWwindow* w) {
@@ -101,7 +100,7 @@ namespace MZ {
         return i;
     }
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize)
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize, std::vector<VertexValueType>& VertexValues)
     {
         int i = shaderGraphicsPipelines.size();
 
@@ -113,12 +112,12 @@ namespace MZ {
 
         shaderUboSize[i] = uboSize;
         createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures);
-        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i]);
+        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues);
 
         return i;
     }
 
-    MeshID createMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+    MeshID createMesh(void* vertices, std::vector<uint32_t>& indices, uint32_t verticesSize, uint32_t vertexSize)
     {
         int i = meshVertexBuffers.size();
         meshVertexBuffers.resize(i + 1);
@@ -127,7 +126,7 @@ namespace MZ {
         meshIndexBufferMemorys.resize(i + 1);
         meshIndicesSizes.resize(i + 1);
 
-        createVertexBuffer(vertices, meshVertexBuffers[i], meshVertexBufferMemorys[i]);
+        createVertexBuffer(vertices, meshVertexBuffers[i], meshVertexBufferMemorys[i], vertexSize * verticesSize);
         createIndexBuffer(indices, meshIndexBuffers[i], meshIndexBufferMemorys[i]);
         meshIndicesSizes[i] = indices.size();
         return i;
@@ -169,12 +168,11 @@ namespace MZ {
 
         updateCamera(renderingFrame);
 
-        // this allows for updateUBO to not be called by user every frame not sure if I want to have this tho
-        //
-        //for (size_t i = 0; i < objectDescriptorPools.size(); i++)
-        //{
-        //    memcpy(objectUniformBuffersMappeds[i][currentFrame].pMappedData, objectUniformBuffersMappeds[i][renderingFrame].pMappedData, sizeof(UniformBufferObject));
-        //}
+
+        for (size_t i = 0; i < objectDescriptorPools.size(); i++)
+        {
+            memcpy(objectUniformBuffersMappeds[i][currentFrame].pMappedData, objectUniformBuffersMappeds[i][renderingFrame].pMappedData, shaderUboSize[objectShaderIDs[i]]);
+        }
 
         vkResetFences(device, 1, &inFlightFences[renderingFrame]);
 
@@ -702,7 +700,7 @@ namespace MZ {
 
     }
 
-    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout)
+    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VertexValueType>& vertexValues)
     {
         auto vertShaderCode = readFile(vertShaderPath);
         auto fragShaderCode = readFile(fragShaderPath);
@@ -727,8 +725,8 @@ namespace MZ {
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-        auto bindingDescription = Vertex::getBindingDescription();
-        auto attributeDescriptions = Vertex::getAttributeDescriptions();
+        auto bindingDescription = getBindingDescription(vertexValues);
+        auto attributeDescriptions = getAttributeDescriptions(vertexValues);
 
         vertexInputInfo.vertexBindingDescriptionCount = 1;
         vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
@@ -888,17 +886,15 @@ namespace MZ {
         vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferMemory);
     }
 
-    void createVertexBuffer(std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VmaAllocation& vertexBufferMemory)
+    void createVertexBuffer(void* vertices, VkBuffer& vertexBuffer, VmaAllocation& vertexBufferMemory, VkDeviceSize bufferSize)
     {
-        VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-
         VkBuffer stagingBuffer;
         VmaAllocation stagingBufferMemory;
         createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory, Mapping);
 
         void* data;
         vmaMapMemory(allocator, stagingBufferMemory, &data);
-        memcpy(data, vertices.data(), (size_t)bufferSize);
+        memcpy(data, vertices, (size_t)bufferSize);
         vmaUnmapMemory(allocator, stagingBufferMemory);
 
         createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory, NoMapping);
@@ -1143,6 +1139,66 @@ namespace MZ {
         if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &bufferMemory, allocationInfo) != VK_SUCCESS) {
             throw std::runtime_error("failed to create buffer!");
         }
+    }
+
+    uint32_t getOffsetVertexValue(VertexValueType vertexValue) {
+        switch (vertexValue) {
+        case R32G32:
+            return 8;
+            break;
+        case R32G32B32:
+            return 12;
+            break;
+        default:
+            throw std::runtime_error("invalid vertex values when creating shader!");
+            break;
+        }
+        return 0;
+    }
+
+    VkFormat getVKFormat(VertexValueType vertexValue) {
+        switch (vertexValue) {
+        case R32G32:
+            return VK_FORMAT_R32G32_SFLOAT;
+            break;
+        case R32G32B32:
+            return VK_FORMAT_R32G32B32_SFLOAT;
+            break;
+        default:
+            throw std::runtime_error("invalid vertex values when creating shader!");
+            break;
+        }
+        return VK_FORMAT_A2B10G10R10_SINT_PACK32;
+    }
+
+    VkVertexInputBindingDescription getBindingDescription(std::vector<VertexValueType>& VertexValues) {
+
+        uint32_t vertexSize = 0;
+        for (size_t i = 0; i < VertexValues.size(); i++)
+        {
+            vertexSize += getOffsetVertexValue(VertexValues[i]);
+        }
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = vertexSize;
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return bindingDescription;
+    }
+
+    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(std::vector<VertexValueType>& VertexValues) {
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(VertexValues.size());
+        uint32_t offset = 0;
+        for (size_t i = 0; i < VertexValues.size(); i++)
+        {
+            attributeDescriptions[i].binding = 0;
+            attributeDescriptions[i].location = i;
+            attributeDescriptions[i].format = getVKFormat(VertexValues[i]);
+            attributeDescriptions[i].offset = offset;
+            offset += getOffsetVertexValue(VertexValues[i]);
+        }
+
+        return attributeDescriptions;
     }
 
     void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VmaAllocation& imageMemory) {
