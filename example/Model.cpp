@@ -4,6 +4,8 @@ void Model::unload() {
     modelVertices.clear();
     modelIndices.clear();
     modelTextures.clear();
+    meshIDs.clear();
+    textureIDs.clear();
 };
 
 Model::Model(std::string modelFilePath) {
@@ -118,12 +120,6 @@ void Model::processMesh(aiMesh* mesh, const aiScene* scene) {
     }
 
     aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
-    // we assume a convention for sampler names in the shaders. Each diffuse texture should be named
-    // as 'texture_diffuseN' where N is a sequential number ranging from 1 to MAX_SAMPLER_NUMBER. 
-    // Same applies to other texture as the following list summarizes:
-    // diffuse: texture_diffuseN
-    // specular: texture_specularN
-    // normal: texture_normalN
 
     // 1. diffuse maps
     std::vector<std::string> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
@@ -146,7 +142,7 @@ void Model::processMesh(aiMesh* mesh, const aiScene* scene) {
 std::vector<std::string> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName)
 {
     std::vector<std::string> textures;
-    for (unsigned int i = 0; i < mat->GetTextureCount(type) && i < 1; i++)
+    for (unsigned int i = 0; i < mat->GetTextureCount(type); i++)
     {
         aiString str;
         mat->GetTexture(type, i, &str);

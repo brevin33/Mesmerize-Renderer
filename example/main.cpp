@@ -29,7 +29,7 @@ void main() {
 
 	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, GraphicsAPI, nullptr, nullptr);
 	MZ::setup(window);
-	ShaderID shaderID = MZ::createShader("../../../shaders/planetVert.spv", "../../../shaders/planetFrag.spv", 1, sizeof(UniformBufferObject), Vertex::getVertexValueTypes());
+	ShaderID shaderID = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", 1, sizeof(UniformBufferObject), Vertex::getVertexValueTypes());
 
 	Model m("../../../models/backpack/backpack.obj");
 	std::vector<ObjectID> backpack = m.addToRenderer(shaderID);
