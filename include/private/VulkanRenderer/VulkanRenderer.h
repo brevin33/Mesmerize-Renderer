@@ -241,18 +241,14 @@ namespace MZ {
 
     void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
+    int64_t ratePhysicalDevice(VkPhysicalDevice phDevice);
+
     std::vector<const char*> getRequiredExtensions();
     bool checkValidationLayerSupport();
 
     void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
-
-    template <typename T>
-    VkVertexInputBindingDescription getVertexBindingDescription();
-
-
-    std::array<VkVertexInputAttributeDescription, 3> getVertexAttributeDescriptions();
 
 }
 

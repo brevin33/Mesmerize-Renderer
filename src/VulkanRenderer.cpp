@@ -91,9 +91,11 @@ namespace MZ {
         objectUniformBuffersMappeds.resize(i + 1);
         objectDescriptorPools.resize(i + 1);
         objectDescriptorSets.resize(i + 1);
+        objectUBO.resize(i+1);
 
         objectMeshIDs[i] = mesh;
         objectShaderIDs[i] = shader;
+        objectUBO[i] = malloc(shaderUboSize[objectShaderIDs[i]]);
         createUniformBuffers(objectUniformBuffers[i], objectUniformBuffersMemorys[i], objectUniformBuffersMappeds[i], shaderUboSize[shader]);
         createDescriptorPool(objectDescriptorPools[i], textures.size());
         createDescriptorSets(objectDescriptorSets[i], objectDescriptorPools[i], shaderDescriptorSetLayouts[shader], objectUniformBuffers[i], textures, shaderUboSize[shader]);
@@ -146,7 +148,7 @@ namespace MZ {
     }
 
     void updateUBO(ObjectID objectID, void* ubo) {
-        memcpy(objectUniformBuffersMappeds[objectID][currentFrame].pMappedData, ubo, shaderUboSize[objectShaderIDs[objectID]]);
+        memcpy(objectUBO[objectID], ubo, shaderUboSize[objectShaderIDs[objectID]]);
     }
 
     void drawFrame() {
@@ -156,7 +158,6 @@ namespace MZ {
         VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
         uint32_t renderingFrame = currentFrame;
-        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             recreateSwapChain();
@@ -171,7 +172,7 @@ namespace MZ {
 
         for (size_t i = 0; i < objectDescriptorPools.size(); i++)
         {
-            memcpy(objectUniformBuffersMappeds[i][currentFrame].pMappedData, objectUniformBuffersMappeds[i][renderingFrame].pMappedData, shaderUboSize[objectShaderIDs[i]]);
+            memcpy(objectUniformBuffersMappeds[i][currentFrame].pMappedData, objectUBO[i], shaderUboSize[objectShaderIDs[i]]);
         }
 
         vkResetFences(device, 1, &inFlightFences[renderingFrame]);
@@ -220,6 +221,8 @@ namespace MZ {
         else if (result != VK_SUCCESS) {
             throw std::runtime_error("failed to present swap chain image!");
         }
+        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+
     }
 
     //----------------------------------------------------------------------------- PRIVATE ---------------------------------------------------- PRIVATE ----------------------------------------------------------------
@@ -1156,21 +1159,6 @@ namespace MZ {
         return 0;
     }
 
-    VkFormat getVKFormat(VertexValueType vertexValue) {
-        switch (vertexValue) {
-        case R32G32:
-            return VK_FORMAT_R32G32_SFLOAT;
-            break;
-        case R32G32B32:
-            return VK_FORMAT_R32G32B32_SFLOAT;
-            break;
-        default:
-            throw std::runtime_error("invalid vertex values when creating shader!");
-            break;
-        }
-        return VK_FORMAT_A2B10G10R10_SINT_PACK32;
-    }
-
     VkVertexInputBindingDescription getBindingDescription(std::vector<VertexValueType>& VertexValues) {
 
         uint32_t vertexSize = 0;
@@ -1193,7 +1181,7 @@ namespace MZ {
         {
             attributeDescriptions[i].binding = 0;
             attributeDescriptions[i].location = i;
-            attributeDescriptions[i].format = getVKFormat(VertexValues[i]);
+            attributeDescriptions[i].format = (VkFormat)VertexValues[i];
             attributeDescriptions[i].offset = offset;
             offset += getOffsetVertexValue(VertexValues[i]);
         }
@@ -1527,17 +1515,50 @@ namespace MZ {
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
+        int64_t bestRating = -9223372036854775808;
         for (const auto& device : devices) {
             if (isDeviceSuitable(device)) {
-                physicalDevice = device;
-                msaaSamples = getMaxUsableSampleCount();
-                break;
+                int64_t rating = ratePhysicalDevice(device);
+                if (rating > bestRating) {
+                    physicalDevice = device;
+                    msaaSamples = getMaxUsableSampleCount();
+                    bestRating = rating;
+                }
             }
         }
 
         if (physicalDevice == VK_NULL_HANDLE) {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
+    }
+
+    int64_t ratePhysicalDevice(VkPhysicalDevice phDevice) {
+        int rating = 0;
+        auto props = VkPhysicalDeviceProperties{};
+        vkGetPhysicalDeviceProperties(phDevice, &props);
+        if (props.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+        {
+            rating += 4000000;
+        }
+        else if (props.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
+        {
+            rating -= 4000000;
+        }
+
+        VkPhysicalDeviceMemoryProperties memoryProps = {};
+        vkGetPhysicalDeviceMemoryProperties(phDevice, &memoryProps);
+
+        auto heapsPointer = memoryProps.memoryHeaps;
+        auto heaps = std::vector<VkMemoryHeap>(heapsPointer, heapsPointer + memoryProps.memoryHeapCount);
+
+        for (const auto& heap : heaps)
+        {
+            if (heap.flags & VkMemoryHeapFlagBits::VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+            {
+                rating += heap.size;
+            }
+        }
+        return rating;
     }
 
     VkSampleCountFlagBits getMaxUsableSampleCount() {
