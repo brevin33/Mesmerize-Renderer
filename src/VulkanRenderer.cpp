@@ -45,15 +45,18 @@ namespace MZ {
             vkDestroyPipeline(device, shaderGraphicsPipelines[i], nullptr);
             vkDestroyPipelineLayout(device, shaderPipelineLayouts[i], nullptr);
             vkDestroyDescriptorSetLayout(device, shaderDescriptorSetLayouts[i], nullptr);
+            vkDestroyDescriptorPool(device, shaderDescriptorPools[i], nullptr);
         }
-        for (size_t i = 0; i < objectDescriptorPools.size(); i++)
+        for (size_t i = 0; i < objectMeshIDs.size(); i++)
         {
-            free(objectUBO[i]);
-            vkDestroyDescriptorPool(device, objectDescriptorPools[i], nullptr);
-            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-                vmaDestroyBuffer(allocator, objectUniformBuffers[i][j], objectUniformBuffersMemorys[i][j]);
-            }
+            
         }
+
+        for (size_t i = 0; i < materialDescriptorSets.size(); i++)
+        {
+            vmaDestroyBuffer(allocator, materialPropertiesBuffers[i], materialPropertiesMemorys[i]);
+        }
+
         for (size_t i = 0; i < textureImages.size(); i++)
         {
             vmaDestroyImage(allocator, textureImages[i], textureImageMemorys[i]);
@@ -87,44 +90,54 @@ namespace MZ {
         vkDestroyInstance(instance, nullptr);
     }
 
-    ObjectID addObject(MeshID mesh, ShaderID shader, std::vector<TextureID>& textures){
-        int i = objectUniformBuffers.size();
-        objectUniformBuffers.resize(i+1);
+    ObjectID addObject(MeshID mesh, MaterialID material){
+        int i = objectMeshIDs.size();
         objectMeshIDs.resize(i + 1);
-        objectShaderIDs.resize(i + 1);
-        objectUniformBuffersMemorys.resize(i + 1);
-        objectUniformBuffersMappeds.resize(i + 1);
-        objectDescriptorPools.resize(i + 1);
-        objectDescriptorSets.resize(i + 1);
-        objectUBO.resize(i+1);
+        objectMaterialIDs.resize(i + 1);
 
         objectMeshIDs[i] = mesh;
-        objectShaderIDs[i] = shader;
-        objectUBO[i] = malloc(shaderUboSize[objectShaderIDs[i]]);
-        createUniformBuffers(objectUniformBuffers[i], objectUniformBuffersMemorys[i], objectUniformBuffersMappeds[i], shaderUboSize[shader]);
-        createDescriptorPool(objectDescriptorPools[i], textures.size());
-        createDescriptorSets(objectDescriptorSets[i], objectDescriptorPools[i], shaderDescriptorSetLayouts[shader], objectUniformBuffers[i], textures, shaderUboSize[shader]);
+        objectMaterialIDs[i] = material;
         return i;
     }
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize, std::vector<VertexValueType>& VertexValues)
+    MaterialID createMaterial(void* materialProperties, int materialPropertiesSize, std::string* textures, uint8_t numTextures, std::string vertShaderPath, std::string fragShaderPath, VertexValueType* VertexValues, uint32_t numVertexValues) {
+        int i = materialShaderIDs.size();
+        materialShaderIDs.resize(i+1);
+        materialPropertiesBuffers.resize(i + 1);
+        materialPropertiesMemorys.resize(i + 1);
+        materialDescriptorSets.resize(i+1);
+
+        
+        ShaderID shaderID = createShader(vertShaderPath, fragShaderPath, numTextures, materialPropertiesSize, VertexValues, numVertexValues);
+        materialShaderIDs[i] = shaderID;
+        std::vector<TextureID> textureIDs(numTextures);
+        for (size_t j = 0; j < numTextures; j++)
+        {
+            textureIDs[j] = createTexture(textures[j]);
+        }
+        createGPUSideOnlyBuffer(materialProperties, materialPropertiesSize, materialPropertiesBuffers[i], materialPropertiesMemorys[i], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], materialPropertiesBuffers[i], textureIDs, materialPropertiesSize);
+
+        return i;
+    }
+
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize, VertexValueType* VertexValues, uint32_t numVertexValues)
     {
         int i = shaderGraphicsPipelines.size();
 
         shaderGraphicsPipelines.resize(i + 1);
         shaderDescriptorSetLayouts.resize(i + 1);
         shaderPipelineLayouts.resize(i + 1);
-        shaderUboSize.resize(i+1);
+        shaderDescriptorPools.resize(i+1);
 
-
-        shaderUboSize[i] = uboSize;
+        createDescriptorPool(shaderDescriptorPools[i], numTextures);
         createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures);
-        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues);
+        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues, numVertexValues);
 
         return i;
     }
 
-    MeshID createMesh(void* vertices, std::vector<uint32_t>& indices, uint32_t verticesSize, uint32_t vertexSize)
+    MeshID createMesh(void* vertices, uint32_t* indices, uint32_t verticesSize, uint32_t vertexSize, uint32_t numIndices)
     {
         int i = meshVertexBuffers.size();
         meshVertexBuffers.resize(i + 1);
@@ -134,8 +147,8 @@ namespace MZ {
         meshIndicesSizes.resize(i + 1);
 
         createVertexBuffer(vertices, meshVertexBuffers[i], meshVertexBufferMemorys[i], vertexSize * verticesSize);
-        createIndexBuffer(indices, meshIndexBuffers[i], meshIndexBufferMemorys[i]);
-        meshIndicesSizes[i] = indices.size();
+        createIndexBuffer(indices, meshIndexBuffers[i], meshIndexBufferMemorys[i], numIndices);
+        meshIndicesSizes[i] = numIndices;
         return i;
     }
 
@@ -150,10 +163,6 @@ namespace MZ {
         createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
         createTextureSampler(textureSamplers[i]);
         return i;
-    }
-
-    void updateUBO(ObjectID objectID, void* ubo) {
-        memcpy(objectUBO[objectID], ubo, shaderUboSize[objectShaderIDs[objectID]]);
     }
 
     void drawFrame() {
@@ -173,12 +182,6 @@ namespace MZ {
         }
 
         updateCamera(renderingFrame);
-
-
-        for (size_t i = 0; i < objectDescriptorPools.size(); i++)
-        {
-            memcpy(objectUniformBuffersMappeds[i][currentFrame].pMappedData, objectUBO[i], shaderUboSize[objectShaderIDs[i]]);
-        }
 
         vkResetFences(device, 1, &inFlightFences[renderingFrame]);
 
@@ -234,7 +237,7 @@ namespace MZ {
 
     void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame) {
         VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[renderFrame].pMappedData;
-        for (size_t i = 0; i < objectDescriptorPools.size() - 1; i++) {
+        for (size_t i = 0; i < objectMeshIDs.size() - 1; i++) {
             drawCommands[i].indexCount = meshIndicesSizes[objectMeshIDs[i]];
             drawCommands[i].instanceCount = 1;
             drawCommands[i].firstIndex = 0;
@@ -244,9 +247,9 @@ namespace MZ {
 
 
         //drawing
-        for (size_t i = 0; i < objectDescriptorPools.size() - 1; i++)
+        for (size_t i = 0; i < objectMeshIDs.size() - 1; i++)
         {
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[objectShaderIDs[i]]);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[materialShaderIDs[objectMaterialIDs[i]]]);
 
             VkBuffer vertexBuffers[] = { meshVertexBuffers[objectMeshIDs[i]] };
             VkDeviceSize offsets[] = { 0 };
@@ -254,13 +257,12 @@ namespace MZ {
 
             vkCmdBindIndexBuffer(commandBuffer, meshIndexBuffers[objectMeshIDs[i]], 0, VK_INDEX_TYPE_UINT32);
 
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[objectShaderIDs[i]], 0, 1, &objectDescriptorSets[i][renderFrame], 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[materialShaderIDs[objectMaterialIDs[i]]], 0, 1, &materialDescriptorSets[objectMaterialIDs[i]][renderFrame], 0, nullptr);
 
             // ------------------------------------------------------------------------------------------------------------------------might want to compact drawcalls-----------------------------------------------------------------------------------------------------------------
 
             VkDeviceSize indirect_offset = i * sizeof(VkDrawIndexedIndirectCommand);
             uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
-
 
             vkCmdDrawIndexedIndirect(commandBuffer, drawCommandBuffer[renderFrame], indirect_offset, 1, draw_stride);
         }
@@ -650,7 +652,7 @@ namespace MZ {
         }
     }
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkBuffer>& uniformBuffers, std::vector<TextureID>& textureIDs, VkDeviceSize uboSize)
+    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, VkBuffer& uniformBuffer, std::vector<TextureID>& textureIDs, VkDeviceSize uboSize)
     {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -666,7 +668,7 @@ namespace MZ {
 
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
             VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = uniformBuffers[j];
+            bufferInfo.buffer = uniformBuffer;
             bufferInfo.offset = 0;
             bufferInfo.range = uboSize;
 
@@ -717,15 +719,21 @@ namespace MZ {
     }
 
 
-    void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VmaAllocation>& uniformBuffersMemory, std::vector<VmaAllocationInfo>& uniformBuffersMapped, VkDeviceSize bufferSize)
-    {
-        uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+    void createGPUSideOnlyBuffer(void* data, VkDeviceSize bufferSize, VkBuffer& buffer, VmaAllocation& bufferMemory, VkBufferUsageFlags useageFlags) {
+        VkBuffer stagingBuffer;
+        VmaAllocation stagingBufferMemory;
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory, Mapping);
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i], PersitantMapping, &uniformBuffersMapped[i]);
-        }
+        void* transferData;
+        vmaMapMemory(allocator, stagingBufferMemory, &transferData);
+        memcpy(transferData, data, (size_t)bufferSize);
+        vmaUnmapMemory(allocator, stagingBufferMemory);
+
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | useageFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer, bufferMemory, NoMapping);
+
+        copyBuffer(stagingBuffer, buffer, bufferSize);
+
+        vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferMemory);
     }
 
     void createViewAndPerspectiveBuffer() {
@@ -740,7 +748,7 @@ namespace MZ {
 
     }
 
-    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VertexValueType>& vertexValues)
+    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues)
     {
         auto vertShaderCode = readFile(vertShaderPath);
         auto fragShaderCode = readFile(fragShaderPath);
@@ -765,8 +773,8 @@ namespace MZ {
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-        auto bindingDescription = getBindingDescription(vertexValues);
-        auto attributeDescriptions = getAttributeDescriptions(vertexValues);
+        auto bindingDescription = getBindingDescription(vertexValues, numVertexValues);
+        auto attributeDescriptions = getAttributeDescriptions(vertexValues, numVertexValues);
 
         vertexInputInfo.vertexBindingDescriptionCount = 1;
         vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
@@ -906,9 +914,9 @@ namespace MZ {
     }
 
 
-    void createIndexBuffer(std::vector<uint32_t>& indices, VkBuffer& indexBuffer, VmaAllocation& indexBufferMemory)
+    void createIndexBuffer(uint32_t* indices, VkBuffer& indexBuffer, VmaAllocation& indexBufferMemory, uint32_t numIndices)
     {
-        VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+        VkDeviceSize bufferSize = sizeof(uint32_t) * numIndices;
 
         VkBuffer stagingBuffer;
         VmaAllocation stagingBufferMemory;
@@ -916,7 +924,7 @@ namespace MZ {
 
         void* data;
         vmaMapMemory(allocator, stagingBufferMemory, &data);
-        memcpy(data, indices.data(), (size_t)bufferSize);
+        memcpy(data, indices, (size_t)bufferSize);
         vmaUnmapMemory(allocator, stagingBufferMemory);
 
         createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory, NoMapping);
@@ -1196,10 +1204,10 @@ namespace MZ {
         return 0;
     }
 
-    VkVertexInputBindingDescription getBindingDescription(std::vector<VertexValueType>& VertexValues) {
+    VkVertexInputBindingDescription getBindingDescription(VertexValueType* VertexValues, uint32_t numVertexValues) {
 
         uint32_t vertexSize = 0;
-        for (size_t i = 0; i < VertexValues.size(); i++)
+        for (size_t i = 0; i < numVertexValues; i++)
         {
             vertexSize += getOffsetVertexValue(VertexValues[i]);
         }
@@ -1211,10 +1219,10 @@ namespace MZ {
         return bindingDescription;
     }
 
-    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(std::vector<VertexValueType>& VertexValues) {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(VertexValues.size());
+    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(VertexValueType* VertexValues, uint32_t numVertexValues) {
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(numVertexValues);
         uint32_t offset = 0;
-        for (size_t i = 0; i < VertexValues.size(); i++)
+        for (size_t i = 0; i < numVertexValues; i++)
         {
             attributeDescriptions[i].binding = 0;
             attributeDescriptions[i].location = i;

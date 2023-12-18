@@ -18,7 +18,6 @@ void spin(ObjectID id) {
 
 	UniformBufferObject ubo{};
 	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	MZ::updateUBO(id,&ubo);
 }
 
 
@@ -29,7 +28,7 @@ void main() {
 
 	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, GraphicsAPI, nullptr, nullptr);
 	MZ::setup(window);
-	ShaderID shaderID = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", 1, sizeof(UniformBufferObject), Vertex::getVertexValueTypes());
+	ShaderID shaderID = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", 1, sizeof(UniformBufferObject), Vertex::getVertexValueTypes().data(), Vertex::getVertexValueTypes().size());
 
 	Model m("../../../models/backpack/backpack.obj");
 	std::vector<ObjectID> backpack = m.addToRenderer(shaderID);

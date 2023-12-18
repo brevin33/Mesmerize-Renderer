@@ -38,13 +38,14 @@ public:
 	std::vector<std::vector<Vertex>> modelVertices; 
 	std::vector<std::vector<uint32_t>> modelIndices;
 	std::vector<std::vector<std::string>> modelTextures;
+	std::vector<uint32_t> assimpMaterialID;
 	std::vector<MeshID> meshIDs;
-	std::vector<std::vector<TextureID>> textureIDs;
+	std::vector<MaterialID> materialIDs;
 
 private:
 
 	std::string directory;
-	std::unordered_map<std::string, TextureID> filePathToTexture;
+	std::unordered_map<uint32_t, MaterialID> modelMaterialToMaterial;
 	void processNode(aiNode* node, const aiScene* scene);
 	void processMesh(aiMesh* mesh, const aiScene* scene);
 	std::vector<std::string> loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName);

@@ -32,14 +32,6 @@ namespace MZ {
         std::vector<VkPresentModeKHR> presentModes;
     };
 
-    struct VkDrawIndexedIndirectCommand {
-        uint32_t    indexCount;
-        uint32_t    instanceCount;
-        uint32_t    firstIndex;
-        int32_t     vertexOffset;
-        uint32_t    firstInstance;
-    };
-
 
     enum BufferMappingType {
         NoMapping,
@@ -102,19 +94,7 @@ namespace MZ {
 
     // should be index by ObjectID
     std::vector<MeshID> objectMeshIDs;
-    std::vector<ShaderID> objectShaderIDs;
-    std::vector<VkDescriptorPool> objectDescriptorPools;
-    std::vector<std::vector<VkDescriptorSet>> objectDescriptorSets;
-    std::vector<std::vector<VkBuffer>> objectUniformBuffers;
-    std::vector<std::vector<VmaAllocation>> objectUniformBuffersMemorys;
-    std::vector<std::vector<VmaAllocationInfo>> objectUniformBuffersMappeds;
-    std::vector<void*> objectUBO;
-
-    // should be index by ShaderID
-    std::vector<VkPipelineLayout> shaderPipelineLayouts;
-    std::vector<VkPipeline> shaderGraphicsPipelines;
-    std::vector<VkDescriptorSetLayout> shaderDescriptorSetLayouts;
-    std::vector<int> shaderUboSize;
+    std::vector<MaterialID> objectMaterialIDs;
 
     // should be index by MeshID
     std::vector<VkBuffer> meshVertexBuffers;
@@ -122,6 +102,18 @@ namespace MZ {
     std::vector<VkBuffer> meshIndexBuffers;
     std::vector<VmaAllocation> meshIndexBufferMemorys;
     std::vector<uint32_t> meshIndicesSizes;
+
+    //should be index by MaterialID
+    std::vector<VkBuffer> materialPropertiesBuffers;
+    std::vector<VmaAllocation> materialPropertiesMemorys;
+    std::vector<ShaderID> materialShaderIDs;
+    std::vector<std::vector<VkDescriptorSet>> materialDescriptorSets;
+
+    // should be index by ShaderID
+    std::vector<VkPipelineLayout> shaderPipelineLayouts;
+    std::vector<VkPipeline> shaderGraphicsPipelines;
+    std::vector<VkDescriptorSetLayout> shaderDescriptorSetLayouts;
+    std::vector<VkDescriptorPool> shaderDescriptorPools;
 
 
     // should be index by TextureID
@@ -162,21 +154,19 @@ namespace MZ {
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t renderFrame);
 
-    void createUniformBuffers(std::vector<VkBuffer>& uniformBuffers, std::vector<VmaAllocation>& uniformBuffersMemory, std::vector<VmaAllocationInfo>& uniformBuffersMapped, VkDeviceSize bufferSize);
-
     void createViewAndPerspectiveBuffer();
 
     void createDrawCommandBuffer();
 
     void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures);
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkBuffer>& uniformBuffers, std::vector<TextureID>& textureIDs, VkDeviceSize uboSize);
+    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, VkBuffer& uniformBuffer, std::vector<TextureID>& textureIDs, VkDeviceSize uboSize);
 
-    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VertexValueType>& vertexValues);
+    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues);
 
     void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures);
 
-    void createIndexBuffer(std::vector<uint32_t>& indices, VkBuffer& indexBuffer, VmaAllocation& indexBufferMemory);
+    void createIndexBuffer(uint32_t* indices, VkBuffer& indexBuffer, VmaAllocation& indexBufferMemory, uint32_t numIndices);
 
     void createVertexBuffer(void* vertices, VkBuffer& vertexBuffer, VmaAllocation& vertexBufferMemory, VkDeviceSize bufferSize);
 
@@ -186,13 +176,15 @@ namespace MZ {
 
     VkCommandBuffer beginSingleTimeCommands();
 
+    void createGPUSideOnlyBuffer(void* data, VkDeviceSize bufferSize, VkBuffer& buffer, VmaAllocation& bufferMemory, VkBufferUsageFlags useageFlags);
+
     void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
     uint32_t getOffsetVertexValue(VertexValueType vertexValue);
 
-    VkVertexInputBindingDescription getBindingDescription(std::vector<VertexValueType>& VertexValues);
+    VkVertexInputBindingDescription getBindingDescription(VertexValueType* VertexValues, uint32_t numVertexValues);
 
-    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(std::vector<VertexValueType>& VertexValues);
+    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(VertexValueType* VertexValues, uint32_t numVertexValues);
 
     static std::vector<char> readFile(const std::string& filename);
 

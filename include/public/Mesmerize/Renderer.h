@@ -3,14 +3,18 @@ namespace MZ{
     //char* GraphicsAPI;
 #ifdef VULKANRENDERER
     #define GraphicsAPI "Vulkan"
-#else
-    #define GraphicsAPI "No Valid API"
-#endif // VULKANRENDERER
-
     enum VertexValueType {
         R32G32B32 = VK_FORMAT_R32G32B32_SFLOAT,
         R32G32 = VK_FORMAT_R32G32_SFLOAT,
     };
+#else
+    #define GraphicsAPI "No Valid API"
+    enum VertexValueType {
+        R32G32B32,
+        R32G32,
+    };
+#endif // VULKANRENDERER
+
 
     void setup(GLFWwindow* window);
 
@@ -18,14 +22,14 @@ namespace MZ{
 
     void drawFrame();
 
-    ObjectID addObject(MeshID mesh, ShaderID shader, std::vector<TextureID>& textures);
+    ObjectID addObject(MeshID mesh, MaterialID material);
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize, std::vector<VertexValueType>& VertexValues);
+    MaterialID createMaterial(void* materialProperties, int materialPropertiesSize, std::string* textures, uint8_t numTextures, std::string vertShaderPath, std::string fragShaderPath, VertexValueType* VertexValues, uint32_t numVertexValues);
 
-    MeshID createMesh(void* vertices, std::vector<uint32_t>& indices, uint32_t verticesSize, uint32_t vertexSize);
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize, VertexValueType* VertexValues, uint32_t numVertexValues);
+
+    MeshID createMesh(void* vertices, uint32_t* indices, uint32_t verticesSize, uint32_t vertexSize, uint32_t numIndices);
 
     TextureID createTexture(std::string textureFilepath);
-
-    void updateUBO(ObjectID objectID, void* ubo);
 
 }
