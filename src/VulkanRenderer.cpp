@@ -112,6 +112,7 @@ namespace MZ {
             objectInstanceMemoryMapped[objectID].resize(MAX_FRAMES_IN_FLIGHT);
             for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
             {
+                //createVertexBuffer(instanceData, objectInstanceBuffer[objectID][i], objectInstanceMemory[objectID][i], instanceDataSize);
                 createBuffer(instanceDataSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, objectInstanceBuffer[objectID][i], objectInstanceMemory[objectID][i], PersitantMapping, &objectInstanceMemoryMapped[objectID][i]);
             }
             objectInstanceData[objectID] = malloc(instanceDataSize);
@@ -136,7 +137,7 @@ namespace MZ {
             }
         }
 
-        memcpy((void*)((uint64_t)objectInstanceData[objectID] + instanceID * instanceDataSize), instanceData, instanceDataSize);
+        memcpy((void*)((uintptr_t)objectInstanceData[objectID] + instanceID * instanceDataSize), instanceData, instanceDataSize);
         objectNumInstances[objectID] += 1;
         RenderObject object;
         object.objectID = objectID;
@@ -255,16 +256,20 @@ namespace MZ {
 
     }
 
+    void updateRenderObjectData(RenderObject renderObject, void* data, uint32_t dataSize) {
+        memcpy((void*)((uintptr_t)objectInstanceData[renderObject.objectID] + renderObject.instanceID * dataSize), data, dataSize);
+    }
+
     //----------------------------------------------------------------------------- PRIVATE ---------------------------------------------------- PRIVATE ----------------------------------------------------------------
 
     void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame) {
         VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[renderFrame].pMappedData;
         for (size_t i = 0; i < objectMeshIDs.size() - 1; i++) {
             drawCommands[i].indexCount = meshIndicesSizes[objectMeshIDs[i]];
-            drawCommands[i].instanceCount = 1;
+            drawCommands[i].instanceCount = objectNumInstances[i];
             drawCommands[i].firstIndex = 0;
             drawCommands[i].vertexOffset = 0;
-            drawCommands[i].firstInstance = i;
+            drawCommands[i].firstInstance = 0;
         }
 
 
@@ -276,6 +281,7 @@ namespace MZ {
             VkBuffer vertexBuffers[] = { meshVertexBuffers[objectMeshIDs[i]], objectInstanceBuffer[i][renderFrame]};
             VkDeviceSize offsets[] = { 0, 0 };
             vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
+
 
             vkCmdBindIndexBuffer(commandBuffer, meshIndexBuffers[objectMeshIDs[i]], 0, VK_INDEX_TYPE_UINT32);
 
@@ -823,9 +829,9 @@ namespace MZ {
 
         uint32_t offset = 0;
         auto vertexBindingDescription = getBindingDescription(vertexValues, numVertexValues, VK_VERTEX_INPUT_RATE_VERTEX, 0);
-        auto vertexAttributeDescriptions = getAttributeDescriptions(vertexValues, numVertexValues, 0, 0, offset);
+        auto vertexAttributeDescriptions = getAttributeDescriptions(vertexValues, numVertexValues, 0, 0);
         auto instanceBindingDescription = getBindingDescription(InstanceTypes, numInstanceTypes, VK_VERTEX_INPUT_RATE_INSTANCE, 1);
-        auto instanceAttributeDescriptions = getAttributeDescriptions(InstanceTypes, numInstanceTypes, 1, vertexAttributeDescriptions.size(), offset);
+        auto instanceAttributeDescriptions = getAttributeDescriptions(InstanceTypes, numInstanceTypes, 1, vertexAttributeDescriptions.size());
 
         std::array<VkVertexInputBindingDescription,2> bindingDescription = { vertexBindingDescription , instanceBindingDescription };
         vertexAttributeDescriptions.insert(vertexAttributeDescriptions.end(), instanceAttributeDescriptions.begin(), instanceAttributeDescriptions.end());
@@ -1252,7 +1258,7 @@ namespace MZ {
             return { 12, 1, VK_FORMAT_R32G32B32_SFLOAT };
             break;
         case float4x4:
-            return { 16*4, 4, VK_FORMAT_R32G32B32A32_SFLOAT };
+            return { 16, 4, VK_FORMAT_R32G32B32A32_SFLOAT };
             break;
         default:
             throw std::runtime_error("invalid vertex values when creating shader!");
@@ -1277,7 +1283,8 @@ namespace MZ {
         return bindingDescription;
     }
 
-    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(VertexValueType* VertexValues, uint32_t numVertexValues, uint32_t binding, uint32_t layoutOffset, uint32_t& offset) {
+    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(VertexValueType* VertexValues, uint32_t numVertexValues, uint32_t binding, uint32_t layoutOffset) {
+        uint32_t offset = 0;
         std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
         for (size_t i = 0; i < numVertexValues; i++)
         {
@@ -1290,8 +1297,8 @@ namespace MZ {
                 attributeDescriptions[j].location = j + layoutOffset;
                 attributeDescriptions[j].format = (VkFormat)offsetValues[2];
                 attributeDescriptions[j].offset = offset;
+                offset += offsetValues[0];
             }
-            offset += offsetValues[0] * offsetValues[1];
         }
 
         return attributeDescriptions;

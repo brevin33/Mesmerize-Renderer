@@ -20,6 +20,7 @@ layout(location = 4) in vec3 inBitangent;
 // Instance Data
 layout(location = 5) in mat4 inModel;
 
+
 // Frag Shader Data
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;

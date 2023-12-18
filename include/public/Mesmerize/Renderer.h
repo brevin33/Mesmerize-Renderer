@@ -39,4 +39,5 @@ namespace MZ{
 
     MeshID createMesh(void* vertices, uint32_t* indices, uint32_t verticesSize, uint32_t vertexSize, uint32_t numIndices);
 
+    void updateRenderObjectData(RenderObject renderObject, void* data, uint32_t dataSize);
 }
