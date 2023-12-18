@@ -20,11 +20,11 @@ struct Vertex
 
 	static std::vector<MZ::VertexValueType> getVertexValueTypes() {
 		std::vector<MZ::VertexValueType> types(5);
-		types[0] = MZ::R32G32B32;
-		types[1] = MZ::R32G32B32;
-		types[2] = MZ::R32G32;
-		types[3] = MZ::R32G32B32;
-		types[4] = MZ::R32G32B32;
+		types[0] = MZ::float3;
+		types[1] = MZ::float3;
+		types[2] = MZ::float2;
+		types[3] = MZ::float3;
+		types[4] = MZ::float3;
 		return types;
 	}
 };
@@ -34,7 +34,7 @@ class Model {
 public:
 	Model(std::string modelFilePath);
 	void unload();
-	std::vector<ObjectID> Model::addToRenderer(ShaderID shaderID);
+	std::vector<MZ::RenderObject> Model::addToRenderer();
 	std::vector<std::vector<Vertex>> modelVertices; 
 	std::vector<std::vector<uint32_t>> modelIndices;
 	std::vector<std::vector<std::string>> modelTextures;

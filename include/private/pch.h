@@ -1,10 +1,5 @@
 ﻿#pragma once
 
-#define ShaderID uint16_t
-#define MeshID uint16_t
-#define ObjectID uint16_t
-#define TextureID uint16_t
-#define MaterialID uint16_t
 #define MAX_FRAMES_IN_FLIGHT 2
 #define MAX_MODEL_TEXURES 1
 #define EMPTY_IMAGE_FILEPATH "../../../models/backpack/diffuse.jpg"

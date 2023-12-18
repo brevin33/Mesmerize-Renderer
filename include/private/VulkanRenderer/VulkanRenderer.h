@@ -95,6 +95,15 @@ namespace MZ {
     // should be index by ObjectID
     std::vector<MeshID> objectMeshIDs;
     std::vector<MaterialID> objectMaterialIDs;
+    std::vector<InstanceID> objectNumInstances;
+    std::vector<uint32_t> objectInstanceBufferSize;
+    std::vector<std::vector<VkBuffer>> objectInstanceBuffer;
+    std::vector<std::vector<VmaAllocation>> objectInstanceMemory;
+    std::vector<std::vector<VmaAllocationInfo>> objectInstanceMemoryMapped;
+    std::vector<void*> objectInstanceData;
+
+    std::unordered_map<uint32_t, ObjectID> objectDataToObjectID;
+
 
     // should be index by MeshID
     std::vector<VkBuffer> meshVertexBuffers;
@@ -134,6 +143,10 @@ namespace MZ {
 
     void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame);
 
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
+
+    TextureID createTexture(std::string textureFilepath);
+
     void recreateSwapChain();
 
     void cleanupSwapChain();
@@ -162,7 +175,7 @@ namespace MZ {
 
     void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, VkBuffer& uniformBuffer, std::vector<TextureID>& textureIDs, VkDeviceSize uboSize);
 
-    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues);
+    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
 
     void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures);
 
@@ -180,11 +193,11 @@ namespace MZ {
 
     void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
-    uint32_t getOffsetVertexValue(VertexValueType vertexValue);
+    std::array<uint32_t, 3> getOffsetVertexValue(VertexValueType vertexValue);
 
-    VkVertexInputBindingDescription getBindingDescription(VertexValueType* VertexValues, uint32_t numVertexValues);
+    VkVertexInputBindingDescription getBindingDescription(VertexValueType* VertexValues, uint32_t numVertexValues, VkVertexInputRate inputRate, uint32_t binding);
 
-    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(VertexValueType* VertexValues, uint32_t numVertexValues);
+    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(VertexValueType* VertexValues, uint32_t numVertexValues, uint32_t binding, uint32_t layoutOffset, uint32_t& offset);
 
     static std::vector<char> readFile(const std::string& filename);
 

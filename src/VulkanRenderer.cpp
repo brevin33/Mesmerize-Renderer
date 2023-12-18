@@ -49,7 +49,11 @@ namespace MZ {
         }
         for (size_t i = 0; i < objectMeshIDs.size(); i++)
         {
-            
+            free(objectInstanceData[i]);
+            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
+            {
+                vmaDestroyBuffer(allocator, objectInstanceBuffer[i][j], objectInstanceMemory[i][j]);
+            }
         }
 
         for (size_t i = 0; i < materialDescriptorSets.size(); i++)
@@ -90,25 +94,65 @@ namespace MZ {
         vkDestroyInstance(instance, nullptr);
     }
 
-    ObjectID addObject(MeshID mesh, MaterialID material){
-        int i = objectMeshIDs.size();
-        objectMeshIDs.resize(i + 1);
-        objectMaterialIDs.resize(i + 1);
+    RenderObject addObject(MeshID mesh, MaterialID material, void* instanceData, uint32_t instanceDataSize){
+        uint32_t objectData = (((uint32_t)mesh) << 16) | material;
+        ObjectID objectID;
+        if (objectDataToObjectID.find(objectData) == objectDataToObjectID.end()) {
+            objectID = objectMeshIDs.size();
+            objectMeshIDs.resize(objectID + 1);
+            objectMaterialIDs.resize(objectID + 1);
+            objectNumInstances.resize(objectID + 1);
+            objectInstanceBuffer.resize(objectID + 1);
+            objectInstanceMemory.resize(objectID + 1);
+            objectInstanceBufferSize.resize(objectID + 1);
+            objectInstanceData.resize(objectID + 1);
+            objectInstanceMemoryMapped.resize(objectID + 1);
+            objectInstanceBuffer[objectID].resize(MAX_FRAMES_IN_FLIGHT);
+            objectInstanceMemory[objectID].resize(MAX_FRAMES_IN_FLIGHT);
+            objectInstanceMemoryMapped[objectID].resize(MAX_FRAMES_IN_FLIGHT);
+            for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+            {
+                createBuffer(instanceDataSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, objectInstanceBuffer[objectID][i], objectInstanceMemory[objectID][i], PersitantMapping, &objectInstanceMemoryMapped[objectID][i]);
+            }
+            objectInstanceData[objectID] = malloc(instanceDataSize);
+            objectInstanceBufferSize[objectID] = 1;
+            objectNumInstances[objectID] = 0;
+            objectMeshIDs[objectID] = mesh;
+            objectMaterialIDs[objectID] = material;
+        }
+        else objectID = objectDataToObjectID[objectData];
+        objectDataToObjectID[objectData] = objectID;
+        InstanceID instanceID = objectNumInstances[objectID];
 
-        objectMeshIDs[i] = mesh;
-        objectMaterialIDs[i] = material;
-        return i;
+        if (objectNumInstances[objectID] >= objectInstanceBufferSize[objectID]) {
+            objectInstanceBufferSize[objectID] *= 2;
+            uint32_t bufferSize = objectInstanceBufferSize[objectID] * instanceDataSize;
+            free(objectInstanceData[objectID]);
+            objectInstanceData[objectID] = malloc(bufferSize);
+            for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+            {
+                vmaDestroyBuffer(allocator, objectInstanceBuffer[objectID][i], objectInstanceMemory[objectID][i]);
+                createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, objectInstanceBuffer[objectID][i], objectInstanceMemory[objectID][i], PersitantMapping, &objectInstanceMemoryMapped[objectID][i]);
+            }
+        }
+
+        memcpy((void*)((uint64_t)objectInstanceData[objectID] + instanceID * instanceDataSize), instanceData, instanceDataSize);
+        objectNumInstances[objectID] += 1;
+        RenderObject object;
+        object.objectID = objectID;
+        object.instanceID = instanceID;
+        return object;
     }
 
-    MaterialID createMaterial(void* materialProperties, int materialPropertiesSize, std::string* textures, uint8_t numTextures, std::string vertShaderPath, std::string fragShaderPath, VertexValueType* VertexValues, uint32_t numVertexValues) {
-        int i = materialShaderIDs.size();
+    MaterialID createMaterial(std::string vertShaderPath, std::string fragShaderPath, void* materialProperties, int materialPropertiesSize, std::string* textures, uint8_t numTextures, VertexValueType* VertexTypes, uint32_t numVertexTypes, VertexValueType* InstanceTypes, uint32_t numInstanceTypes){
+    int i = materialShaderIDs.size();
         materialShaderIDs.resize(i+1);
         materialPropertiesBuffers.resize(i + 1);
         materialPropertiesMemorys.resize(i + 1);
         materialDescriptorSets.resize(i+1);
 
         
-        ShaderID shaderID = createShader(vertShaderPath, fragShaderPath, numTextures, materialPropertiesSize, VertexValues, numVertexValues);
+        ShaderID shaderID = createShader(vertShaderPath, fragShaderPath, numTextures, materialPropertiesSize, VertexTypes, numVertexTypes, InstanceTypes, numInstanceTypes);
         materialShaderIDs[i] = shaderID;
         std::vector<TextureID> textureIDs(numTextures);
         for (size_t j = 0; j < numTextures; j++)
@@ -121,21 +165,6 @@ namespace MZ {
         return i;
     }
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize, VertexValueType* VertexValues, uint32_t numVertexValues)
-    {
-        int i = shaderGraphicsPipelines.size();
-
-        shaderGraphicsPipelines.resize(i + 1);
-        shaderDescriptorSetLayouts.resize(i + 1);
-        shaderPipelineLayouts.resize(i + 1);
-        shaderDescriptorPools.resize(i+1);
-
-        createDescriptorPool(shaderDescriptorPools[i], numTextures);
-        createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures);
-        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues, numVertexValues);
-
-        return i;
-    }
 
     MeshID createMesh(void* vertices, uint32_t* indices, uint32_t verticesSize, uint32_t vertexSize, uint32_t numIndices)
     {
@@ -152,18 +181,6 @@ namespace MZ {
         return i;
     }
 
-    TextureID createTexture(std::string textureFilepath) {
-
-        int i = textureImages.size();
-        textureImages.resize(i + 1);
-        textureImageMemorys.resize(i + 1);
-        textureImageViews.resize(i + 1);
-        textureSamplers.resize(i + 1);
-
-        createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
-        createTextureSampler(textureSamplers[i]);
-        return i;
-    }
 
     void drawFrame() {
 
@@ -182,6 +199,11 @@ namespace MZ {
         }
 
         updateCamera(renderingFrame);
+
+        for (size_t i = 0; i < objectInstanceBuffer.size(); i++)
+        {
+            memcpy(objectInstanceMemoryMapped[i][renderingFrame].pMappedData, objectInstanceData[i], sizeof(glm::mat4));
+        }
 
         vkResetFences(device, 1, &inFlightFences[renderingFrame]);
 
@@ -251,15 +273,13 @@ namespace MZ {
         {
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[materialShaderIDs[objectMaterialIDs[i]]]);
 
-            VkBuffer vertexBuffers[] = { meshVertexBuffers[objectMeshIDs[i]] };
-            VkDeviceSize offsets[] = { 0 };
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+            VkBuffer vertexBuffers[] = { meshVertexBuffers[objectMeshIDs[i]], objectInstanceBuffer[i][renderFrame]};
+            VkDeviceSize offsets[] = { 0, 0 };
+            vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
 
             vkCmdBindIndexBuffer(commandBuffer, meshIndexBuffers[objectMeshIDs[i]], 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[materialShaderIDs[objectMaterialIDs[i]]], 0, 1, &materialDescriptorSets[objectMaterialIDs[i]][renderFrame], 0, nullptr);
-
-            // ------------------------------------------------------------------------------------------------------------------------might want to compact drawcalls-----------------------------------------------------------------------------------------------------------------
 
             VkDeviceSize indirect_offset = i * sizeof(VkDrawIndexedIndirectCommand);
             uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
@@ -268,6 +288,34 @@ namespace MZ {
         }
     }
 
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes)
+    {
+        int i = shaderGraphicsPipelines.size();
+
+        shaderGraphicsPipelines.resize(i + 1);
+        shaderDescriptorSetLayouts.resize(i + 1);
+        shaderPipelineLayouts.resize(i + 1);
+        shaderDescriptorPools.resize(i + 1);
+
+        createDescriptorPool(shaderDescriptorPools[i], numTextures);
+        createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures);
+        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues, numVertexValues, InstanceTypes, numInstanceTypes);
+
+        return i;
+    }
+
+    TextureID createTexture(std::string textureFilepath) {
+
+        int i = textureImages.size();
+        textureImages.resize(i + 1);
+        textureImageMemorys.resize(i + 1);
+        textureImageViews.resize(i + 1);
+        textureSamplers.resize(i + 1);
+
+        createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
+        createTextureSampler(textureSamplers[i]);
+        return i;
+    }
 
     void createVmaAllocator() {
 
@@ -748,7 +796,7 @@ namespace MZ {
 
     }
 
-    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues)
+    void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes)
     {
         auto vertShaderCode = readFile(vertShaderPath);
         auto fragShaderCode = readFile(fragShaderPath);
@@ -773,13 +821,19 @@ namespace MZ {
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-        auto bindingDescription = getBindingDescription(vertexValues, numVertexValues);
-        auto attributeDescriptions = getAttributeDescriptions(vertexValues, numVertexValues);
+        uint32_t offset = 0;
+        auto vertexBindingDescription = getBindingDescription(vertexValues, numVertexValues, VK_VERTEX_INPUT_RATE_VERTEX, 0);
+        auto vertexAttributeDescriptions = getAttributeDescriptions(vertexValues, numVertexValues, 0, 0, offset);
+        auto instanceBindingDescription = getBindingDescription(InstanceTypes, numInstanceTypes, VK_VERTEX_INPUT_RATE_INSTANCE, 1);
+        auto instanceAttributeDescriptions = getAttributeDescriptions(InstanceTypes, numInstanceTypes, 1, vertexAttributeDescriptions.size(), offset);
 
-        vertexInputInfo.vertexBindingDescriptionCount = 1;
-        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+        std::array<VkVertexInputBindingDescription,2> bindingDescription = { vertexBindingDescription , instanceBindingDescription };
+        vertexAttributeDescriptions.insert(vertexAttributeDescriptions.end(), instanceAttributeDescriptions.begin(), instanceAttributeDescriptions.end());
+
+        vertexInputInfo.vertexBindingDescriptionCount = bindingDescription.size();
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributeDescriptions.size());
+        vertexInputInfo.pVertexBindingDescriptions = bindingDescription.data();
+        vertexInputInfo.pVertexAttributeDescriptions = vertexAttributeDescriptions.data();
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -1189,46 +1243,55 @@ namespace MZ {
         }
     }
 
-    uint32_t getOffsetVertexValue(VertexValueType vertexValue) {
+    std::array<uint32_t,3> getOffsetVertexValue(VertexValueType vertexValue) {
         switch (vertexValue) {
-        case R32G32:
-            return 8;
+        case float2:
+            return { 8, 1, VK_FORMAT_R32G32_SFLOAT };
             break;
-        case R32G32B32:
-            return 12;
+        case float3:
+            return { 12, 1, VK_FORMAT_R32G32B32_SFLOAT };
+            break;
+        case float4x4:
+            return { 16*4, 4, VK_FORMAT_R32G32B32A32_SFLOAT };
             break;
         default:
             throw std::runtime_error("invalid vertex values when creating shader!");
             break;
         }
-        return 0;
+        return {0,0,0};
     }
 
-    VkVertexInputBindingDescription getBindingDescription(VertexValueType* VertexValues, uint32_t numVertexValues) {
+    VkVertexInputBindingDescription getBindingDescription(VertexValueType* VertexValues, uint32_t numVertexValues, VkVertexInputRate inputRate, uint32_t binding) {
 
         uint32_t vertexSize = 0;
         for (size_t i = 0; i < numVertexValues; i++)
         {
-            vertexSize += getOffsetVertexValue(VertexValues[i]);
+            std::array<uint32_t,3> offsetValues = getOffsetVertexValue(VertexValues[i]);
+            vertexSize += offsetValues[0] * offsetValues[1];
         }
         VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
+        bindingDescription.binding = binding;
         bindingDescription.stride = vertexSize;
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        bindingDescription.inputRate = inputRate;
 
         return bindingDescription;
     }
 
-    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(VertexValueType* VertexValues, uint32_t numVertexValues) {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(numVertexValues);
-        uint32_t offset = 0;
+    std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions(VertexValueType* VertexValues, uint32_t numVertexValues, uint32_t binding, uint32_t layoutOffset, uint32_t& offset) {
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
         for (size_t i = 0; i < numVertexValues; i++)
         {
-            attributeDescriptions[i].binding = 0;
-            attributeDescriptions[i].location = i;
-            attributeDescriptions[i].format = (VkFormat)VertexValues[i];
-            attributeDescriptions[i].offset = offset;
-            offset += getOffsetVertexValue(VertexValues[i]);
+            std::array<uint32_t, 3> offsetValues = getOffsetVertexValue(VertexValues[i]);
+            for (size_t i = 0; i < offsetValues[1]; i++)
+            {
+                size_t j = attributeDescriptions.size();
+                attributeDescriptions.resize(j+1);
+                attributeDescriptions[j].binding = binding;
+                attributeDescriptions[j].location = j + layoutOffset;
+                attributeDescriptions[j].format = (VkFormat)offsetValues[2];
+                attributeDescriptions[j].offset = offset;
+            }
+            offset += offsetValues[0] * offsetValues[1];
         }
 
         return attributeDescriptions;

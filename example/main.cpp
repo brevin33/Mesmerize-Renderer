@@ -10,7 +10,7 @@ struct UniformBufferObject {
 };
 
 
-void spin(ObjectID id) {
+void spin(MZ::RenderObject object) {
 	static auto startTime = std::chrono::high_resolution_clock::now();
 
 	auto currentTime = std::chrono::high_resolution_clock::now();
@@ -28,10 +28,9 @@ void main() {
 
 	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, GraphicsAPI, nullptr, nullptr);
 	MZ::setup(window);
-	ShaderID shaderID = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", 1, sizeof(UniformBufferObject), Vertex::getVertexValueTypes().data(), Vertex::getVertexValueTypes().size());
 
 	Model m("../../../models/backpack/backpack.obj");
-	std::vector<ObjectID> backpack = m.addToRenderer(shaderID);
+	std::vector<MZ::RenderObject> backpack = m.addToRenderer();
 	m.unload();
 
 	auto i = sizeof(Vertex);

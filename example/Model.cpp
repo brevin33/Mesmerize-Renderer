@@ -33,11 +33,12 @@ Model::Model(std::string modelFilePath) {
     }
 }
 
-std::vector<ObjectID> Model::addToRenderer(ShaderID shaderID) {
-    std::vector<ObjectID> ids(meshIDs.size());
+std::vector<MZ::RenderObject> Model::addToRenderer() {
+    std::vector<MZ::RenderObject> ids(meshIDs.size());
     for (size_t i = 0; i < ids.size(); i++)
     {
-        ids[i] = MZ::addObject(meshIDs[i], materialIDs[i]);
+        glm::mat4 model = glm::mat4(1.0f);
+        ids[i] = MZ::addObject(meshIDs[i], materialIDs[i], &model, sizeof(glm::mat4));
     }
     return ids;
 }
@@ -130,9 +131,10 @@ void Model::processMesh(aiMesh* mesh, const aiScene* scene) {
     // 4. height maps
     //std::vector<std::string> heightMaps = loadMaterialTextures(material, aiTextureType_AMBIENT, "texture_height");
     //textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
+    MZ::VertexValueType instanceType = MZ::float4x4;
 
-    glm::mat4 model = glm::rotate(glm::mat4(1.0f), 1 * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    modelMaterialToMaterial[mesh->mMaterialIndex] = MZ::createMaterial(&model, sizeof(glm::mat4), textures.data(), textures.size(), "../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", Vertex::getVertexValueTypes().data(), Vertex::getVertexValueTypes().size());
+    glm::vec3 color = glm::vec3(1, 1, 1);
+    modelMaterialToMaterial[mesh->mMaterialIndex] = MZ::createMaterial("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv" , &color, sizeof(glm::vec3), textures.data(), textures.size(), Vertex::getVertexValueTypes().data(), Vertex::getVertexValueTypes().size(), &instanceType, 1);
 }
 
 std::vector<std::string> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName)
