@@ -32,3 +32,5 @@
 #include <set>
 #include <unordered_map>
 #include <array>
+
+#include <boost/serialization/strong_typedef.hpp>

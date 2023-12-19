@@ -7,14 +7,15 @@ namespace MZ{
 
 #endif // VULKANRENDERER
 
-    typedef uint32_t InstanceID;
-    typedef uint16_t ShaderID;
-    typedef uint16_t MeshID;
-    typedef uint16_t ObjectID;
-    typedef uint16_t TextureID;
-    typedef uint16_t MaterialID;
-    typedef uint16_t UniformBufferID;
-    typedef uint16_t MutUniformBufferID;
+    BOOST_STRONG_TYPEDEF(uint32_t, InstanceID);
+    BOOST_STRONG_TYPEDEF(uint16_t, ShaderID);
+    BOOST_STRONG_TYPEDEF(uint16_t, MeshID);
+    BOOST_STRONG_TYPEDEF(uint16_t, MutMeshID);
+    BOOST_STRONG_TYPEDEF(uint16_t, ObjectID);
+    BOOST_STRONG_TYPEDEF(uint16_t, TextureID);
+    BOOST_STRONG_TYPEDEF(uint16_t, MaterialID);
+    BOOST_STRONG_TYPEDEF(uint16_t, UniformBufferID);
+    BOOST_STRONG_TYPEDEF(uint16_t, MutUniformBufferID);
 
     struct RenderObject
     {
@@ -40,6 +41,8 @@ namespace MZ{
     void drawFrame();
 
     RenderObject addObject(MeshID mesh, MaterialID material, void* instanceData, uint32_t instanceDataSize);
+
+    RenderObject addObject(MutMeshID mesh, MaterialID material, void* instanceData, uint32_t instanceDataSize);
 
     MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, MutUniformBufferID* mutBufferIDs, uint32_t numMutBufferIDs);
 

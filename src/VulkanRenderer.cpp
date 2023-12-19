@@ -156,7 +156,7 @@ namespace MZ {
     }
 
     MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, MutUniformBufferID* mutBufferIDs, uint32_t numMutBufferIDs){
-        int i = materialShaderIDs.size();
+        MaterialID i = (MaterialID)materialShaderIDs.size();
         materialShaderIDs.resize(i+1);
         materialDescriptorSets.resize(i+1);
 
@@ -169,7 +169,7 @@ namespace MZ {
 
     ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes)
     {
-        int i = shaderGraphicsPipelines.size();
+        ShaderID i = (ShaderID)shaderGraphicsPipelines.size();
 
         shaderGraphicsPipelines.resize(i + 1);
         shaderDescriptorSetLayouts.resize(i + 1);
@@ -185,7 +185,7 @@ namespace MZ {
 
 
     MutUniformBufferID createMutUniformBuffer(void* data, uint32_t bufferSize, Mutability mutability) {
-        int i = mutUniformBuffers.size();
+        MutUniformBufferID i = (MutUniformBufferID)mutUniformBuffers.size();
 
         mutUniformBuffers.resize(i+1);
         mutUniformBuffersMemory.resize(i+1);
@@ -207,7 +207,7 @@ namespace MZ {
     }
 
     UniformBufferID createUniformBuffer(void* data, uint32_t bufferSize) {
-        int i = uniformBuffers.size();
+        UniformBufferID i = (UniformBufferID)uniformBuffers.size();
         uniformBuffers.resize(i + 1);
         uniformBuffersMemory.resize(i + 1);
         uniformBuffersSize.resize(i + 1);
@@ -219,8 +219,7 @@ namespace MZ {
     }
 
     TextureID createTexture(std::string textureFilepath) {
-
-        int i = textureImages.size();
+        TextureID i = (TextureID)textureImages.size();
         textureImages.resize(i + 1);
         textureImageMemorys.resize(i + 1);
         textureImageViews.resize(i + 1);
@@ -234,7 +233,7 @@ namespace MZ {
 
     MeshID createMesh(void* vertices, uint32_t* indices, uint32_t verticesSize, uint32_t vertexSize, uint32_t numIndices)
     {
-        int i = meshVertexBuffers.size();
+        MeshID i = (MeshID)meshVertexBuffers.size();
         meshVertexBuffers.resize(i + 1);
         meshVertexBufferMemorys.resize(i + 1);
         meshIndexBuffers.resize(i + 1);

@@ -19,11 +19,14 @@ find_package(glfw3 CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(VulkanHeaders CONFIG)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+FIND_PACKAGE( Boost 1.40 COMPONENTS program_options REQUIRED )
+
 
 add_library(MesmerizeRenderer STATIC  "src/VulkanRenderer.cpp" )
 
 add_compile_definitions(VULKANRENDERER)
 
+INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 target_include_directories(MesmerizeRenderer PRIVATE include/private)
 target_include_directories(MesmerizeRenderer PRIVATE include/dep)
 target_include_directories(MesmerizeRenderer PUBLIC include/public)
@@ -34,6 +37,7 @@ target_link_libraries(MesmerizeRenderer PUBLIC glfw)
 target_link_libraries(MesmerizeRenderer PUBLIC glm::glm)
 target_link_libraries(MesmerizeRenderer PRIVATE Vulkan::Vulkan)
 target_link_libraries(MesmerizeRenderer PUBLIC Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
+TARGET_LINK_LIBRARIES(MesmerizeRenderer LINK_PUBLIC ${Boost_LIBRARIES} )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET MesmerizeRenderer PROPERTY CXX_STANDARD 20)
