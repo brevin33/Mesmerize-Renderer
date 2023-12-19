@@ -92,7 +92,7 @@ namespace MZ {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
-    // should be index by ObjectID
+    // should index by ObjectID
     std::vector<MeshID> objectMeshIDs;
     std::vector<MaterialID> objectMaterialIDs;
     std::vector<InstanceID> objectNumInstances;
@@ -100,32 +100,43 @@ namespace MZ {
     std::vector<std::vector<VkBuffer>> objectInstanceBuffer;
     std::vector<std::vector<VmaAllocation>> objectInstanceMemory;
     std::vector<std::vector<VmaAllocationInfo>> objectInstanceMemoryMapped;
+    std::vector<uint32_t> objectInstanceBufferDataSize;
     std::vector<void*> objectInstanceData;
 
     std::unordered_map<uint32_t, ObjectID> objectDataToObjectID;
 
 
-    // should be index by MeshID
+    // should index by MutUniformBufferID
+    std::vector<std::vector<VkBuffer>> mutUniformBuffers;
+    std::vector<std::vector<VmaAllocation>> mutUniformBuffersMemory;
+    std::vector<std::vector<VmaAllocationInfo>> mutUniFormBuffersMapped;
+    std::vector<void*> mutUniformBufferData;
+    std::vector<uint32_t> mutUniformBuffersSize;
+
+    // should index by UniformBufferID
+    std::vector<VkBuffer> uniformBuffers;
+    std::vector<VmaAllocation> uniformBuffersMemory;
+    std::vector<uint32_t> uniformBuffersSize;
+
+
+    // should index by MeshID
     std::vector<VkBuffer> meshVertexBuffers;
     std::vector<VmaAllocation> meshVertexBufferMemorys;
     std::vector<VkBuffer> meshIndexBuffers;
     std::vector<VmaAllocation> meshIndexBufferMemorys;
     std::vector<uint32_t> meshIndicesSizes;
 
-    //should be index by MaterialID
-    std::vector<VkBuffer> materialPropertiesBuffers;
-    std::vector<VmaAllocation> materialPropertiesMemorys;
+    //should index by MaterialID
     std::vector<ShaderID> materialShaderIDs;
     std::vector<std::vector<VkDescriptorSet>> materialDescriptorSets;
 
-    // should be index by ShaderID
+    // should index by ShaderID
     std::vector<VkPipelineLayout> shaderPipelineLayouts;
     std::vector<VkPipeline> shaderGraphicsPipelines;
     std::vector<VkDescriptorSetLayout> shaderDescriptorSetLayouts;
     std::vector<VkDescriptorPool> shaderDescriptorPools;
 
-
-    // should be index by TextureID
+    // should index by TextureID
     std::vector<VkImage> textureImages;
     std::vector<VmaAllocation> textureImageMemorys;
     std::vector<VkImageView> textureImageViews;
@@ -142,10 +153,6 @@ namespace MZ {
     };
 
     void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame);
-
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
-
-    TextureID createTexture(std::string textureFilepath);
 
     void recreateSwapChain();
 
@@ -171,13 +178,13 @@ namespace MZ {
 
     void createDrawCommandBuffer();
 
-    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures);
+    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures, uint32_t numBuffers);
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, VkBuffer& uniformBuffer, std::vector<TextureID>& textureIDs, VkDeviceSize uboSize);
+    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, MutUniformBufferID* mutBufferIDs, uint32_t numMutBufferIDs);
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
 
-    void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures);
+    void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures, uint32_t numBuffers);
 
     void createIndexBuffer(uint32_t* indices, VkBuffer& indexBuffer, VmaAllocation& indexBufferMemory, uint32_t numIndices);
 

@@ -1,12 +1,7 @@
 #version 450
 
-// UBO
-layout(binding = 0) uniform UniformBufferObject {
-    vec3 color;
-} ubo;
-
 // Camera
-layout(binding = 1) uniform cameraInfo{ 
+layout(binding = 0) uniform cameraInfo{ 
     mat4 viewproj;
 } camera;
 
@@ -28,6 +23,6 @@ layout(location = 1) out vec2 fragTexCoord;
 void main() {
     gl_Position = camera.viewproj * inModel * vec4(inPosition, 1.0);
 
-    fragColor = ubo.color;
+    fragColor = vec3(1,1,1);
     fragTexCoord = inUv;
 }

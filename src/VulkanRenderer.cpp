@@ -56,11 +56,6 @@ namespace MZ {
             }
         }
 
-        for (size_t i = 0; i < materialDescriptorSets.size(); i++)
-        {
-            vmaDestroyBuffer(allocator, materialPropertiesBuffers[i], materialPropertiesMemorys[i]);
-        }
-
         for (size_t i = 0; i < textureImages.size(); i++)
         {
             vmaDestroyImage(allocator, textureImages[i], textureImageMemorys[i]);
@@ -68,6 +63,18 @@ namespace MZ {
             vkDestroyImageView(device, textureImageViews[i], nullptr);
         }
 
+        for (size_t i = 0; i < mutUniformBuffers.size(); i++)
+        {
+            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                vmaDestroyBuffer(allocator, mutUniformBuffers[i][j], mutUniformBuffersMemory[i][j]);
+            }
+            free(mutUniformBufferData[i]);
+        }
+
+        for (size_t i = 0; i < uniformBuffers.size(); i++)
+        {
+            vmaDestroyBuffer(allocator, uniformBuffers[i], uniformBuffersMemory[i]);
+        }
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vmaDestroyBuffer(allocator, drawCommandBuffer[i], drawCommandBufferMemory[i]);
@@ -107,6 +114,8 @@ namespace MZ {
             objectInstanceBufferSize.resize(objectID + 1);
             objectInstanceData.resize(objectID + 1);
             objectInstanceMemoryMapped.resize(objectID + 1);
+            objectInstanceBufferDataSize.resize(objectID + 1);
+
             objectInstanceBuffer[objectID].resize(MAX_FRAMES_IN_FLIGHT);
             objectInstanceMemory[objectID].resize(MAX_FRAMES_IN_FLIGHT);
             objectInstanceMemoryMapped[objectID].resize(MAX_FRAMES_IN_FLIGHT);
@@ -117,6 +126,7 @@ namespace MZ {
             }
             objectInstanceData[objectID] = malloc(instanceDataSize);
             objectInstanceBufferSize[objectID] = 1;
+            objectInstanceBufferDataSize[objectID] = instanceDataSize;
             objectNumInstances[objectID] = 0;
             objectMeshIDs[objectID] = mesh;
             objectMaterialIDs[objectID] = material;
@@ -145,24 +155,79 @@ namespace MZ {
         return object;
     }
 
-    MaterialID createMaterial(std::string vertShaderPath, std::string fragShaderPath, void* materialProperties, int materialPropertiesSize, std::string* textures, uint8_t numTextures, VertexValueType* VertexTypes, uint32_t numVertexTypes, VertexValueType* InstanceTypes, uint32_t numInstanceTypes){
-    int i = materialShaderIDs.size();
+    MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, MutUniformBufferID* mutBufferIDs, uint32_t numMutBufferIDs){
+        int i = materialShaderIDs.size();
         materialShaderIDs.resize(i+1);
-        materialPropertiesBuffers.resize(i + 1);
-        materialPropertiesMemorys.resize(i + 1);
         materialDescriptorSets.resize(i+1);
 
-        
-        ShaderID shaderID = createShader(vertShaderPath, fragShaderPath, numTextures, materialPropertiesSize, VertexTypes, numVertexTypes, InstanceTypes, numInstanceTypes);
         materialShaderIDs[i] = shaderID;
-        std::vector<TextureID> textureIDs(numTextures);
-        for (size_t j = 0; j < numTextures; j++)
-        {
-            textureIDs[j] = createTexture(textures[j]);
-        }
-        createGPUSideOnlyBuffer(materialProperties, materialPropertiesSize, materialPropertiesBuffers[i], materialPropertiesMemorys[i], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], materialPropertiesBuffers[i], textureIDs, materialPropertiesSize);
+        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers,  mutBufferIDs, numMutBufferIDs);
 
+        return i;
+    }
+
+
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes)
+    {
+        int i = shaderGraphicsPipelines.size();
+
+        shaderGraphicsPipelines.resize(i + 1);
+        shaderDescriptorSetLayouts.resize(i + 1);
+        shaderPipelineLayouts.resize(i + 1);
+        shaderDescriptorPools.resize(i + 1);
+
+        createDescriptorPool(shaderDescriptorPools[i], numTextures, numBuffers);
+        createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures, numBuffers);
+        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues, numVertexValues, InstanceTypes, numInstanceTypes);
+
+        return i;
+    }
+
+
+    MutUniformBufferID createMutUniformBuffer(void* data, uint32_t bufferSize, Mutability mutability) {
+        int i = mutUniformBuffers.size();
+
+        mutUniformBuffers.resize(i+1);
+        mutUniformBuffersMemory.resize(i+1);
+        mutUniFormBuffersMapped.resize(i+1);
+        mutUniformBuffersSize.resize(i+1);
+        mutUniformBufferData.resize(i+1);
+
+        mutUniformBuffers[i].resize(MAX_FRAMES_IN_FLIGHT);
+        mutUniformBuffersMemory[i].resize(MAX_FRAMES_IN_FLIGHT);
+        mutUniFormBuffersMapped[i].resize(MAX_FRAMES_IN_FLIGHT);
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mutUniformBuffers[i][j], mutUniformBuffersMemory[i][j], PersitantMapping, &mutUniFormBuffersMapped[i][j]);
+        }
+        mutUniformBufferData[i] = malloc(bufferSize);
+        memcpy(mutUniformBufferData[i], data, bufferSize);
+        mutUniformBuffersSize[i] = bufferSize;
+        return i;
+    }
+
+    UniformBufferID createUniformBuffer(void* data, uint32_t bufferSize) {
+        int i = uniformBuffers.size();
+        uniformBuffers.resize(i + 1);
+        uniformBuffersMemory.resize(i + 1);
+        uniformBuffersSize.resize(i + 1);
+
+        uniformBuffersSize[i] = bufferSize;
+        createGPUSideOnlyBuffer(data,bufferSize,uniformBuffers[i],uniformBuffersMemory[i], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+        return i;
+    }
+
+    TextureID createTexture(std::string textureFilepath) {
+
+        int i = textureImages.size();
+        textureImages.resize(i + 1);
+        textureImageMemorys.resize(i + 1);
+        textureImageViews.resize(i + 1);
+        textureSamplers.resize(i + 1);
+
+        createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
+        createTextureSampler(textureSamplers[i]);
         return i;
     }
 
@@ -182,6 +247,9 @@ namespace MZ {
         return i;
     }
 
+    void updateBuffer(MutUniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset) {
+        memcpy((void*)((intptr_t)mutUniformBufferData[buffer] + offset), data, dataSize);
+    }
 
     void drawFrame() {
 
@@ -203,7 +271,12 @@ namespace MZ {
 
         for (size_t i = 0; i < objectInstanceBuffer.size(); i++)
         {
-            memcpy(objectInstanceMemoryMapped[i][renderingFrame].pMappedData, objectInstanceData[i], sizeof(glm::mat4));
+            memcpy(objectInstanceMemoryMapped[i][renderingFrame].pMappedData, objectInstanceData[i], objectInstanceBufferDataSize[i]);
+        }
+
+        for (size_t i = 0; i < mutUniformBuffers.size(); i++)
+        {
+            memcpy(mutUniFormBuffersMapped[i][renderingFrame].pMappedData, mutUniformBufferData[i], mutUniformBuffersSize[i]);
         }
 
         vkResetFences(device, 1, &inFlightFences[renderingFrame]);
@@ -292,35 +365,6 @@ namespace MZ {
 
             vkCmdDrawIndexedIndirect(commandBuffer, drawCommandBuffer[renderFrame], indirect_offset, 1, draw_stride);
         }
-    }
-
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint8_t numTextures, int uboSize, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes)
-    {
-        int i = shaderGraphicsPipelines.size();
-
-        shaderGraphicsPipelines.resize(i + 1);
-        shaderDescriptorSetLayouts.resize(i + 1);
-        shaderPipelineLayouts.resize(i + 1);
-        shaderDescriptorPools.resize(i + 1);
-
-        createDescriptorPool(shaderDescriptorPools[i], numTextures);
-        createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures);
-        createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues, numVertexValues, InstanceTypes, numInstanceTypes);
-
-        return i;
-    }
-
-    TextureID createTexture(std::string textureFilepath) {
-
-        int i = textureImages.size();
-        textureImages.resize(i + 1);
-        textureImageMemorys.resize(i + 1);
-        textureImageViews.resize(i + 1);
-        textureSamplers.resize(i + 1);
-
-        createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
-        createTextureSampler(textureSamplers[i]);
-        return i;
     }
 
     void createVmaAllocator() {
@@ -682,17 +726,24 @@ namespace MZ {
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     }
 
-    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures)
+    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures, uint32_t numBuffers)
     {
-        std::vector<VkDescriptorPoolSize> poolSizes(numTextures+2);
-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        std::vector<VkDescriptorPoolSize> poolSizes(numTextures+ numBuffers+1);
+        uint32_t bindings = 0;
+        poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        bindings++;
+        for (size_t i = 0; i < numBuffers; i++)
+        {
+            poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+            bindings++;
+        }
         for (size_t i = 2; i <= numTextures + 1; i++)
         {
-            poolSizes[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            poolSizes[i].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+            poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+            bindings++;
         }
 
         VkDescriptorPoolCreateInfo poolInfo{};
@@ -706,7 +757,7 @@ namespace MZ {
         }
     }
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, VkBuffer& uniformBuffer, std::vector<TextureID>& textureIDs, VkDeviceSize uboSize)
+    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, MutUniformBufferID* mutBufferIDs, uint32_t numMutBufferIDs)
     {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -720,52 +771,83 @@ namespace MZ {
             throw std::runtime_error("failed to allocate descriptor sets!");
         }
 
+        std::vector<VkDescriptorBufferInfo> BufferInfo(numBuffers);
+        for (size_t i = 0; i < numBuffers; i++)
+        {
+            BufferInfo[i].buffer = uniformBuffers[bufferIDs[i]];
+            BufferInfo[i].offset = 0;
+            BufferInfo[i].range = uniformBuffersSize[bufferIDs[i]];
+        }
+
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = uniformBuffer;
-            bufferInfo.offset = 0;
-            bufferInfo.range = uboSize;
+            std::vector<VkDescriptorBufferInfo> mutBufferInfos(numMutBufferIDs);
+            for (size_t i = 0; i < numMutBufferIDs; i++)
+            {
+                mutBufferInfos[i].buffer = mutUniformBuffers[mutBufferIDs[i]][j];
+                mutBufferInfos[i].offset = 0;
+                mutBufferInfos[i].range = mutUniformBuffersSize[mutBufferIDs[i]];
+            }
 
             VkDescriptorBufferInfo viewPerspectiveBufferInfo{};
             viewPerspectiveBufferInfo.buffer = viewPerspectiveBuffer[j];
             viewPerspectiveBufferInfo.offset = 0;
             viewPerspectiveBufferInfo.range = sizeof(glm::mat4);
 
-            std::vector<VkDescriptorImageInfo> imageInfo(textureIDs.size());
-            for (size_t i = 0; i < textureIDs.size(); i++)
+            std::vector<VkDescriptorImageInfo> imageInfo(numTextureIDs);
+            for (size_t i = 0; i < numTextureIDs; i++)
             {
                 imageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 imageInfo[i].imageView = textureImageViews[textureIDs[i]];
                 imageInfo[i].sampler = textureSamplers[textureIDs[i]];
             }
 
-            std::vector<VkWriteDescriptorSet> descriptorWrites(textureIDs.size() + 2);
+            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers + numMutBufferIDs +  numTextureIDs + 1);
+
+            int dstBinding = 0;
 
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[0].dstSet = descriptorSets[j];
-            descriptorWrites[0].dstBinding = 0;
+            descriptorWrites[0].dstBinding = dstBinding;
             descriptorWrites[0].dstArrayElement = 0;
             descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             descriptorWrites[0].descriptorCount = 1;
-            descriptorWrites[0].pBufferInfo = &bufferInfo;
+            descriptorWrites[0].pBufferInfo = &viewPerspectiveBufferInfo;
+            dstBinding++;
 
-            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[1].dstSet = descriptorSets[j];
-            descriptorWrites[1].dstBinding = 1;
-            descriptorWrites[1].dstArrayElement = 0;
-            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[1].descriptorCount = 1;
-            descriptorWrites[1].pBufferInfo = &viewPerspectiveBufferInfo;
-
-            for (size_t i = 2; i <= textureIDs.size() + 1; i++)
+            for (size_t i = 0; i < numBuffers; i++)
             {
-                descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                descriptorWrites[i].dstSet = descriptorSets[j];
-                descriptorWrites[i].dstBinding = i;
-                descriptorWrites[i].dstArrayElement = 0;
-                descriptorWrites[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                descriptorWrites[i].descriptorCount = 1;
-                descriptorWrites[i].pImageInfo = &imageInfo[i-2];
+                descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                descriptorWrites[dstBinding].dstSet = descriptorSets[j];
+                descriptorWrites[dstBinding].dstBinding = dstBinding;
+                descriptorWrites[dstBinding].dstArrayElement = 0;
+                descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                descriptorWrites[dstBinding].descriptorCount = 1;
+                descriptorWrites[dstBinding].pBufferInfo = &BufferInfo[i];
+                dstBinding++;
+            }
+
+            for (size_t i = 0; i < numMutBufferIDs; i++)
+            {
+                descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                descriptorWrites[dstBinding].dstSet = descriptorSets[j];
+                descriptorWrites[dstBinding].dstBinding = dstBinding;
+                descriptorWrites[dstBinding].dstArrayElement = 0;
+                descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                descriptorWrites[dstBinding].descriptorCount = 1;
+                descriptorWrites[dstBinding].pBufferInfo = &mutBufferInfos[i];
+                dstBinding++;
+            }
+
+            for (size_t i = 0; i < numTextureIDs; i++)
+            {
+                descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                descriptorWrites[dstBinding].dstSet = descriptorSets[j];
+                descriptorWrites[dstBinding].dstBinding = dstBinding;
+                descriptorWrites[dstBinding].dstArrayElement = 0;
+                descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                descriptorWrites[dstBinding].descriptorCount = 1;
+                descriptorWrites[dstBinding].pImageInfo = &imageInfo[i];
+                dstBinding++;
             }
 
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
@@ -932,35 +1014,40 @@ namespace MZ {
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
     }
 
-    void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures)
+    void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures, uint32_t numBuffers)
     {
-        VkDescriptorSetLayoutBinding uboLayoutBinding{};
-        uboLayoutBinding.binding = 0;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboLayoutBinding.pImmutableSamplers = nullptr;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uint32_t binding = 0;
 
         VkDescriptorSetLayoutBinding viewPerspectiveLayoutBinding{};
-        viewPerspectiveLayoutBinding.binding = 1;
+        viewPerspectiveLayoutBinding.binding = binding;
         viewPerspectiveLayoutBinding.descriptorCount = 1;
         viewPerspectiveLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         viewPerspectiveLayoutBinding.pImmutableSamplers = nullptr;
         viewPerspectiveLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        binding++;
 
-        std::vector<VkDescriptorSetLayoutBinding> bindings(numTextures+2);
-        bindings[0] = uboLayoutBinding;
-        bindings[1] = viewPerspectiveLayoutBinding;
+        std::vector<VkDescriptorSetLayoutBinding> bindings(numTextures + numBuffers + 1);
+        bindings[0] = viewPerspectiveLayoutBinding;
+
+        for (size_t i = 0; i < numBuffers; i++)
+        {
+            bindings[binding].binding = binding;
+            bindings[binding].descriptorCount = 1;
+            bindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            bindings[binding].pImmutableSamplers = nullptr;
+            bindings[binding].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+            binding++;
+        }
 
         std::vector<VkDescriptorSetLayoutBinding> samplerLayoutBinding(numTextures);
         for (size_t i = 0; i < numTextures; i++)
         {
-            samplerLayoutBinding[i].binding = i + 2;
-            samplerLayoutBinding[i].descriptorCount = 1;
-            samplerLayoutBinding[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            samplerLayoutBinding[i].pImmutableSamplers = nullptr;
-            samplerLayoutBinding[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-            bindings[i + 2] = samplerLayoutBinding[i];
+            bindings[binding].binding = binding;
+            bindings[binding].descriptorCount = 1;
+            bindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            bindings[binding].pImmutableSamplers = nullptr;
+            bindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            binding++;
         }
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};

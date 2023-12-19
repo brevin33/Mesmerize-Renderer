@@ -133,8 +133,15 @@ void Model::processMesh(aiMesh* mesh, const aiScene* scene) {
     //textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
     MZ::VertexValueType instanceType = MZ::float4x4;
 
-    glm::vec3 color = glm::vec3(1, 1, 1);
-    modelMaterialToMaterial[mesh->mMaterialIndex] = MZ::createMaterial("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv" , &color, sizeof(glm::vec3), textures.data(), textures.size(), Vertex::getVertexValueTypes().data(), Vertex::getVertexValueTypes().size(), &instanceType, 1);
+
+    MZ::ShaderID shaderID = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", textures.size(), 0, Vertex::getVertexValueTypes().data(), Vertex::getVertexValueTypes().size(), &instanceType, 1);
+    std::vector<MZ::TextureID> textureIDs(textures.size());
+    for (size_t i = 0; i < textures.size(); i++)
+    {
+        textureIDs[i] = MZ::createTexture(textures[i]);
+    }
+
+    modelMaterialToMaterial[mesh->mMaterialIndex] = MZ::createMaterial(shaderID, textureIDs.data(), textureIDs.size(), nullptr, 0, nullptr, 0);
 }
 
 std::vector<std::string> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName)
