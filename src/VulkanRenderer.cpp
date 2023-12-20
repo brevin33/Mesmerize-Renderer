@@ -63,17 +63,12 @@ namespace MZ {
             vkDestroyImageView(device, textureImageViews[i], nullptr);
         }
 
-        for (size_t i = 0; i < mutUniformBuffers.size(); i++)
-        {
-            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-                vmaDestroyBuffer(allocator, mutUniformBuffers[i][j], mutUniformBuffersMemory[i][j]);
-            }
-            free(mutUniformBufferData[i]);
-        }
-
         for (size_t i = 0; i < uniformBuffers.size(); i++)
         {
-            vmaDestroyBuffer(allocator, uniformBuffers[i], uniformBuffersMemory[i]);
+            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                vmaDestroyBuffer(allocator, uniformBuffers[i][j], uniformBuffersMemory[i][j]);
+            }
+            free(uniformBufferData[i]);
         }
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -155,13 +150,13 @@ namespace MZ {
         return object;
     }
 
-    MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, MutUniformBufferID* mutBufferIDs, uint32_t numMutBufferIDs){
+    MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers){
         MaterialID i = (MaterialID)materialShaderIDs.size();
         materialShaderIDs.resize(i+1);
         materialDescriptorSets.resize(i+1);
 
         materialShaderIDs[i] = shaderID;
-        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers,  mutBufferIDs, numMutBufferIDs);
+        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers);
 
         return i;
     }
@@ -184,25 +179,25 @@ namespace MZ {
     }
 
 
-    MutUniformBufferID createMutUniformBuffer(void* data, uint32_t bufferSize, Mutability mutability) {
-        MutUniformBufferID i = (MutUniformBufferID)mutUniformBuffers.size();
+    UniformBufferID createMutUniformBuffer(void* data, uint32_t bufferSize, Mutability mutability) {
+        UniformBufferID i = (UniformBufferID)uniformBuffers.size();
 
-        mutUniformBuffers.resize(i+1);
-        mutUniformBuffersMemory.resize(i+1);
-        mutUniFormBuffersMapped.resize(i+1);
-        mutUniformBuffersSize.resize(i+1);
-        mutUniformBufferData.resize(i+1);
+        uniformBuffers.resize(i+1);
+        uniformBuffersMemory.resize(i+1);
+        uniFormBuffersMapped.resize(i+1);
+        uniformBuffersSize.resize(i+1);
+        uniformBufferData.resize(i+1);
 
-        mutUniformBuffers[i].resize(MAX_FRAMES_IN_FLIGHT);
-        mutUniformBuffersMemory[i].resize(MAX_FRAMES_IN_FLIGHT);
-        mutUniFormBuffersMapped[i].resize(MAX_FRAMES_IN_FLIGHT);
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
-            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mutUniformBuffers[i][j], mutUniformBuffersMemory[i][j], PersitantMapping, &mutUniFormBuffersMapped[i][j]);
+            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i][j], uniformBuffersMemory[i][j], PersitantMapping, &uniFormBuffersMapped[i][j]);
         }
-        mutUniformBufferData[i] = malloc(bufferSize);
-        memcpy(mutUniformBufferData[i], data, bufferSize);
-        mutUniformBuffersSize[i] = bufferSize;
+
+
+        mutBuffers.push_back(i);
+        uniformBufferData[i] = malloc(bufferSize);
+        memcpy(uniformBufferData[i], data, bufferSize);
+        uniformBuffersSize[i] = bufferSize;
         return i;
     }
 
@@ -210,10 +205,17 @@ namespace MZ {
         UniformBufferID i = (UniformBufferID)uniformBuffers.size();
         uniformBuffers.resize(i + 1);
         uniformBuffersMemory.resize(i + 1);
+        uniFormBuffersMapped.resize(i + 1);
         uniformBuffersSize.resize(i + 1);
+        uniformBufferData.resize(i + 1);
 
         uniformBuffersSize[i] = bufferSize;
-        createGPUSideOnlyBuffer(data,bufferSize,uniformBuffers[i],uniformBuffersMemory[i], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        createGPUSideOnlyBuffer(data,bufferSize,uniformBuffers[i][0], uniformBuffersMemory[i][0], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            memcpy(uniformBuffers[i][j], uniformBuffers[i][0], sizeof(VkBuffer));
+            memcpy(uniformBuffersMemory[i][j], uniformBuffersMemory[i][0], sizeof(VmaAllocation));
+        }
 
         return i;
     }
@@ -246,8 +248,8 @@ namespace MZ {
         return i;
     }
 
-    void updateBuffer(MutUniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset) {
-        memcpy((void*)((intptr_t)mutUniformBufferData[buffer] + offset), data, dataSize);
+    void updateBuffer(UniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset) {
+        memcpy((void*)((intptr_t)uniformBufferData[buffer] + offset), data, dataSize);
     }
 
     void drawFrame() {
@@ -273,9 +275,9 @@ namespace MZ {
             memcpy(objectInstanceMemoryMapped[i][renderingFrame].pMappedData, objectInstanceData[i], objectInstanceBufferDataSize[i]);
         }
 
-        for (size_t i = 0; i < mutUniformBuffers.size(); i++)
+        for (size_t i = 0; i < mutBuffers.size(); i++)
         {
-            memcpy(mutUniFormBuffersMapped[i][renderingFrame].pMappedData, mutUniformBufferData[i], mutUniformBuffersSize[i]);
+            memcpy(uniFormBuffersMapped[mutBuffers[i]][renderingFrame].pMappedData, uniformBufferData[mutBuffers[i]], uniformBuffersSize[mutBuffers[i]]);
         }
 
         vkResetFences(device, 1, &inFlightFences[renderingFrame]);
@@ -756,7 +758,7 @@ namespace MZ {
         }
     }
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, MutUniformBufferID* mutBufferIDs, uint32_t numMutBufferIDs)
+    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers)
     {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -770,21 +772,14 @@ namespace MZ {
             throw std::runtime_error("failed to allocate descriptor sets!");
         }
 
-        std::vector<VkDescriptorBufferInfo> BufferInfo(numBuffers);
-        for (size_t i = 0; i < numBuffers; i++)
-        {
-            BufferInfo[i].buffer = uniformBuffers[bufferIDs[i]];
-            BufferInfo[i].offset = 0;
-            BufferInfo[i].range = uniformBuffersSize[bufferIDs[i]];
-        }
 
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-            std::vector<VkDescriptorBufferInfo> mutBufferInfos(numMutBufferIDs);
-            for (size_t i = 0; i < numMutBufferIDs; i++)
+            std::vector<VkDescriptorBufferInfo> BufferInfo(numBuffers);
+            for (size_t i = 0; i < numBuffers; i++)
             {
-                mutBufferInfos[i].buffer = mutUniformBuffers[mutBufferIDs[i]][j];
-                mutBufferInfos[i].offset = 0;
-                mutBufferInfos[i].range = mutUniformBuffersSize[mutBufferIDs[i]];
+                BufferInfo[i].buffer = uniformBuffers[bufferIDs[i]][j];
+                BufferInfo[i].offset = 0;
+                BufferInfo[i].range = uniformBuffersSize[bufferIDs[i]];
             }
 
             VkDescriptorBufferInfo viewPerspectiveBufferInfo{};
@@ -800,7 +795,7 @@ namespace MZ {
                 imageInfo[i].sampler = textureSamplers[textureIDs[i]];
             }
 
-            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers + numMutBufferIDs +  numTextureIDs + 1);
+            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs + 1);
 
             int dstBinding = 0;
 
@@ -822,18 +817,6 @@ namespace MZ {
                 descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
                 descriptorWrites[dstBinding].descriptorCount = 1;
                 descriptorWrites[dstBinding].pBufferInfo = &BufferInfo[i];
-                dstBinding++;
-            }
-
-            for (size_t i = 0; i < numMutBufferIDs; i++)
-            {
-                descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                descriptorWrites[dstBinding].dstSet = descriptorSets[j];
-                descriptorWrites[dstBinding].dstBinding = dstBinding;
-                descriptorWrites[dstBinding].dstArrayElement = 0;
-                descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-                descriptorWrites[dstBinding].descriptorCount = 1;
-                descriptorWrites[dstBinding].pBufferInfo = &mutBufferInfos[i];
                 dstBinding++;
             }
 

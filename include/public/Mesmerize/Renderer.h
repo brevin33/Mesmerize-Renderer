@@ -10,12 +10,10 @@ namespace MZ{
     BOOST_STRONG_TYPEDEF(uint32_t, InstanceID);
     BOOST_STRONG_TYPEDEF(uint16_t, ShaderID);
     BOOST_STRONG_TYPEDEF(uint16_t, MeshID);
-    BOOST_STRONG_TYPEDEF(uint16_t, MutMeshID);
     BOOST_STRONG_TYPEDEF(uint16_t, ObjectID);
     BOOST_STRONG_TYPEDEF(uint16_t, TextureID);
     BOOST_STRONG_TYPEDEF(uint16_t, MaterialID);
     BOOST_STRONG_TYPEDEF(uint16_t, UniformBufferID);
-    BOOST_STRONG_TYPEDEF(uint16_t, MutUniformBufferID);
 
     struct RenderObject
     {
@@ -42,9 +40,7 @@ namespace MZ{
 
     RenderObject addObject(MeshID mesh, MaterialID material, void* instanceData, uint32_t instanceDataSize);
 
-    RenderObject addObject(MutMeshID mesh, MaterialID material, void* instanceData, uint32_t instanceDataSize);
-
-    MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, MutUniformBufferID* mutBufferIDs, uint32_t numMutBufferIDs);
+    MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers);
 
     MeshID createMesh(void* vertices, uint32_t* indices, uint32_t verticesSize, uint32_t vertexSize, uint32_t numIndices);
 
@@ -52,11 +48,11 @@ namespace MZ{
 
     TextureID createTexture(std::string textureFilepath);
 
-    MutUniformBufferID createMutUniformBuffer(void* data, uint32_t bufferSize, Mutability mutability);
+    UniformBufferID createMutUniformBuffer(void* data, uint32_t bufferSize, Mutability mutability);
 
     UniformBufferID createUniformBuffer(void* data, uint32_t bufferSize);
 
-    void updateBuffer(MutUniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset = 0);
+    void updateBuffer(UniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset = 0);
 
     void updateRenderObjectData(RenderObject renderObject, void* data, uint32_t dataSize);
 }

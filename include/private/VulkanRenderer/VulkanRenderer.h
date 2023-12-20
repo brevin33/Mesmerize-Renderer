@@ -92,6 +92,8 @@ namespace MZ {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
+    std::vector<UniformBufferID> mutBuffers;
+
     // should index by ObjectID
     std::vector<MeshID> objectMeshIDs;
     std::vector<MaterialID> objectMaterialIDs;
@@ -106,16 +108,11 @@ namespace MZ {
     std::unordered_map<uint32_t, ObjectID> objectDataToObjectID;
 
 
-    // should index by MutUniformBufferID
-    std::vector<std::vector<VkBuffer>> mutUniformBuffers;
-    std::vector<std::vector<VmaAllocation>> mutUniformBuffersMemory;
-    std::vector<std::vector<VmaAllocationInfo>> mutUniFormBuffersMapped;
-    std::vector<void*> mutUniformBufferData;
-    std::vector<uint32_t> mutUniformBuffersSize;
-
     // should index by UniformBufferID
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VmaAllocation> uniformBuffersMemory;
+    std::vector<std::array<VkBuffer, MAX_FRAMES_IN_FLIGHT>> uniformBuffers;
+    std::vector<std::array<VmaAllocation, MAX_FRAMES_IN_FLIGHT>> uniformBuffersMemory;
+    std::vector<std::array<VmaAllocationInfo,MAX_FRAMES_IN_FLIGHT>> uniFormBuffersMapped;
+    std::vector<void*> uniformBufferData;
     std::vector<uint32_t> uniformBuffersSize;
 
 
@@ -180,7 +177,7 @@ namespace MZ {
 
     void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures, uint32_t numBuffers);
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, MutUniformBufferID* mutBufferIDs, uint32_t numMutBufferIDs);
+    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers);
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
 

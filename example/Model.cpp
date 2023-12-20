@@ -141,7 +141,7 @@ void Model::processMesh(aiMesh* mesh, const aiScene* scene) {
         textureIDs[i] = MZ::createTexture(textures[i]);
     }
 
-    modelMaterialToMaterial[mesh->mMaterialIndex] = MZ::createMaterial(shaderID, textureIDs.data(), textureIDs.size(), nullptr, 0, nullptr, 0);
+    modelMaterialToMaterial[mesh->mMaterialIndex] = MZ::createMaterial(shaderID, textureIDs.data(), textureIDs.size(), nullptr, 0);
 }
 
 std::vector<std::string> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName)
