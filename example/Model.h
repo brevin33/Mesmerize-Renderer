@@ -20,11 +20,11 @@ struct Vertex
 
 	static std::vector<MZ::VertexValueType> getVertexValueTypes() {
 		std::vector<MZ::VertexValueType> types(5);
-		types[0] = MZ::float3;
-		types[1] = MZ::float3;
-		types[2] = MZ::float2;
-		types[3] = MZ::float3;
-		types[4] = MZ::float3;
+		types[0] = MZ::VTfloat3;
+		types[1] = MZ::VTfloat3;
+		types[2] = MZ::VTfloat2;
+		types[3] = MZ::VTfloat3;
+		types[4] = MZ::VTfloat3;
 		return types;
 	}
 };

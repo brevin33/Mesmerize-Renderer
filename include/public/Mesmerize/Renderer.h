@@ -16,9 +16,19 @@ namespace MZ{
     BOOST_STRONG_TYPEDEF(uint16_t, IndexBufferID);
 
     enum VertexValueType {
-        float3,
-        float2,
-        float4x4,
+        VTfloat4,
+        VTfloat3,
+        VTfloat2,
+        VTfloat,
+        VTfloat4x4,
+        VTfloat4x3,
+        VTfloat4x2,
+        VTfloat3x4,
+        VTfloat3x3,
+        VTfloat3x2,
+        VTfloat2x4,
+        VTfloat2x3,
+        VTfloat2x2,
     };
 
     void setup(GLFWwindow* window);

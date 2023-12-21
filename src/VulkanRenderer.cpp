@@ -1374,15 +1374,32 @@ namespace MZ {
 
     std::array<uint32_t,3> getOffsetVertexValue(VertexValueType vertexValue) {
         switch (vertexValue) {
-        case float2:
+        case VTfloat:
+            return { 4, 1, VK_FORMAT_R32_SFLOAT };
+        case VTfloat2:
             return { 8, 1, VK_FORMAT_R32G32_SFLOAT };
-            break;
-        case float3:
+        case VTfloat3:
             return { 12, 1, VK_FORMAT_R32G32B32_SFLOAT };
-            break;
-        case float4x4:
+        case VTfloat4:
+            return { 16, 1, VK_FORMAT_R32G32B32A32_SFLOAT };
+        case VTfloat4x4:
             return { 16, 4, VK_FORMAT_R32G32B32A32_SFLOAT };
-            break;
+        case VTfloat3x4:
+            return { 12, 4, VK_FORMAT_R32G32B32_SFLOAT };
+        case VTfloat2x4:
+            return { 8, 4, VK_FORMAT_R32G32_SFLOAT };
+        case VTfloat4x3:
+            return { 16, 3, VK_FORMAT_R32G32B32A32_SFLOAT };
+        case VTfloat3x3:
+            return { 12, 3, VK_FORMAT_R32G32B32_SFLOAT };
+        case VTfloat2x3:
+            return { 8, 3, VK_FORMAT_R32G32_SFLOAT };
+        case VTfloat4x2:
+            return { 16, 2, VK_FORMAT_R32G32B32A32_SFLOAT };
+        case VTfloat3x2:
+            return { 12, 2, VK_FORMAT_R32G32B32_SFLOAT };
+        case VTfloat2x2:
+            return { 8, 2, VK_FORMAT_R32G32_SFLOAT };
         default:
             throw std::runtime_error("invalid vertex values when creating shader!");
             break;
@@ -1776,11 +1793,11 @@ namespace MZ {
         vkGetPhysicalDeviceProperties(phDevice, &props);
         if (props.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
         {
-            rating += 4000000;
+            rating += 40000000;
         }
         else if (props.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
         {
-            rating -= 4000000;
+            rating -= 40000000;
         }
 
         VkPhysicalDeviceMemoryProperties memoryProps = {};
@@ -1886,16 +1903,20 @@ namespace MZ {
                 indices.graphicsFamily = i;
             }
 
+            if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT && (!indices.presentFamily || indices.presentFamily == indices.graphicsFamily)) {
+                indices.computeFamily = i;
+            }
+
             VkBool32 presentSupport = false;
             vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
 
-            if (presentSupport) {
+            if (presentSupport && (!indices.presentFamily || indices.presentFamily == indices.graphicsFamily)) {
                 indices.presentFamily = i;
             }
 
-            if (indices.isComplete()) {
-                break;
-            }
+            //if (indices.isComplete()) {
+            //    break;
+            //}
 
             i++;
         }

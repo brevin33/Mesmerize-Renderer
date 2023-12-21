@@ -36,7 +36,7 @@ void main() {
 
 	//loading shader
 	std::vector<MZ::VertexValueType> vertValues = Vertex::getVertexValueTypes();
-	MZ::VertexValueType instanceValue = MZ::float4x4;
+	MZ::VertexValueType instanceValue = MZ::VTfloat4x4;
 	MZ::ShaderID unlitShader = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", 1, 1, vertValues.data(), vertValues.size(), &instanceValue, 1);
 
 	//creating camera buffer

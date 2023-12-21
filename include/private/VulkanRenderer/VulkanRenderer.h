@@ -20,9 +20,14 @@ namespace MZ {
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
+        std::optional<uint32_t> computeFamily;
 
         bool isComplete() {
-            return graphicsFamily.has_value() && presentFamily.has_value();
+            return graphicsFamily.has_value() && presentFamily.has_value() && computeFamily.has_value();
+        }
+
+        bool uniqueFamily(uint32_t family) {
+            return family != graphicsFamily && family != presentFamily && family != computeFamily;
         }
     };
 
