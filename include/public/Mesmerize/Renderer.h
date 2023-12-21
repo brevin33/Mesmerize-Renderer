@@ -7,30 +7,19 @@ namespace MZ{
 
 #endif // VULKANRENDERER
 
-    BOOST_STRONG_TYPEDEF(uint32_t, InstanceID);
     BOOST_STRONG_TYPEDEF(uint16_t, ShaderID);
-    BOOST_STRONG_TYPEDEF(uint16_t, MeshID);
-    BOOST_STRONG_TYPEDEF(uint16_t, ObjectID);
+    BOOST_STRONG_TYPEDEF(uint16_t, RenderObjectID);
     BOOST_STRONG_TYPEDEF(uint16_t, TextureID);
     BOOST_STRONG_TYPEDEF(uint16_t, MaterialID);
     BOOST_STRONG_TYPEDEF(uint16_t, UniformBufferID);
+    BOOST_STRONG_TYPEDEF(uint16_t, VertexBufferID);
+    BOOST_STRONG_TYPEDEF(uint16_t, IndexBufferID);
 
-    struct RenderObject
-    {
-        ObjectID objectID;
-        uint32_t instanceID;
-    };
     enum VertexValueType {
         float3,
         float2,
         float4x4,
     };
-    enum Mutability {
-        CPU,
-        GPU,
-        BOTH,
-    };
-
 
     void setup(GLFWwindow* window);
 
@@ -38,21 +27,36 @@ namespace MZ{
 
     void drawFrame();
 
-    RenderObject addObject(MeshID mesh, MaterialID material, void* instanceData, uint32_t instanceDataSize);
+    int getRenderWidth();
+
+    int getRenderHeight();
+
+    RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer, VertexBufferID instanceBuffer);
+
+    RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer);
 
     MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers);
-
-    MeshID createMesh(void* vertices, uint32_t* indices, uint32_t verticesSize, uint32_t vertexSize, uint32_t numIndices);
 
     ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
 
     TextureID createTexture(std::string textureFilepath);
 
-    UniformBufferID createMutUniformBuffer(void* data, uint32_t bufferSize, Mutability mutability);
+    VertexBufferID createVertexBuffer(void* vertices, uint32_t numVertices,uint64_t bufferSize);
+
+    VertexBufferID createCPUMutVertexBuffer(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize);
+
+    IndexBufferID createIndexBuffer(void* indices, uint64_t bufferSize);
+
+    IndexBufferID createCPUMutIndexBuffer(void* indices, uint32_t numIndices, uint64_t bufferSize);
+
+    UniformBufferID createCPUMutUniformBuffer(void* data, uint32_t bufferSize);
 
     UniformBufferID createUniformBuffer(void* data, uint32_t bufferSize);
 
-    void updateBuffer(UniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset = 0);
+    void updateCPUMutUniformBuffer(UniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset = 0);
 
-    void updateRenderObjectData(RenderObject renderObject, void* data, uint32_t dataSize);
+    void updateCPUMutVertexBuffer(VertexBufferID buffer, void* data, uint32_t dataSize, uint32_t offset = 0);
+
+    void updateCPUMutIndexBuffer(IndexBufferID buffer, void* data, uint32_t dataSize, uint32_t offset = 0);
+
 }

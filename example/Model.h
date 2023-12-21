@@ -34,18 +34,14 @@ class Model {
 public:
 	Model(std::string modelFilePath);
 	void unload();
-	std::vector<MZ::RenderObject> Model::addToRenderer();
 	std::vector<std::vector<Vertex>> modelVertices; 
 	std::vector<std::vector<uint32_t>> modelIndices;
 	std::vector<std::vector<std::string>> modelTextures;
 	std::vector<uint32_t> assimpMaterialID;
-	std::vector<MZ::MeshID> meshIDs;
-	std::vector<MZ::MaterialID> materialIDs;
 
 private:
 
 	std::string directory;
-	std::unordered_map<uint32_t, MZ::MaterialID> modelMaterialToMaterial;
 	void processNode(aiNode* node, const aiScene* scene);
 	void processMesh(aiMesh* mesh, const aiScene* scene);
 	std::vector<std::string> loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName);

@@ -84,44 +84,56 @@ namespace MZ {
     VkImageView colorImageView;
     VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
-    std::vector<VkBuffer> viewPerspectiveBuffer;
-    std::vector<VmaAllocation> viewPerspectiveBufferMemory;
-    std::vector<VmaAllocationInfo> viewPerspectiveBufferMapped;
-
     const std::vector<const char*> deviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
-    std::vector<UniformBufferID> mutBuffers;
+    std::vector<UniformBufferID> mutUniformBuffers;
+    std::vector<VertexBufferID> mutVertexBuffers;
+    std::vector<IndexBufferID> mutIndexBuffers;
 
-    // should index by ObjectID
-    std::vector<MeshID> objectMeshIDs;
-    std::vector<MaterialID> objectMaterialIDs;
-    std::vector<InstanceID> objectNumInstances;
-    std::vector<uint32_t> objectInstanceBufferSize;
-    std::vector<std::vector<VkBuffer>> objectInstanceBuffer;
-    std::vector<std::vector<VmaAllocation>> objectInstanceMemory;
-    std::vector<std::vector<VmaAllocationInfo>> objectInstanceMemoryMapped;
-    std::vector<uint32_t> objectInstanceBufferDataSize;
-    std::vector<void*> objectInstanceData;
-
-    std::unordered_map<uint32_t, ObjectID> objectDataToObjectID;
+    std::vector<UniformBufferID> constUniformBuffers;
+    std::vector<VertexBufferID> constVertexBuffers;
+    std::vector<IndexBufferID> constIndexBuffers;
 
 
+
+    // should index by RenderObjectID
+
+    struct RenderObject {
+        MaterialID material;
+        VertexBufferID vertexBuffer;
+        IndexBufferID indexBuffer;
+        VertexBufferID instanceBuffer;
+        uint8_t numVertexBuffers;
+    };
+    std::vector<RenderObject> renderObjects;
+    
     // should index by UniformBufferID
     std::vector<std::array<VkBuffer, MAX_FRAMES_IN_FLIGHT>> uniformBuffers;
     std::vector<std::array<VmaAllocation, MAX_FRAMES_IN_FLIGHT>> uniformBuffersMemory;
-    std::vector<std::array<VmaAllocationInfo,MAX_FRAMES_IN_FLIGHT>> uniFormBuffersMapped;
+    std::vector<std::array<VmaAllocationInfo,MAX_FRAMES_IN_FLIGHT>> uniformBuffersMapped;
     std::vector<void*> uniformBufferData;
     std::vector<uint32_t> uniformBuffersSize;
+    std::vector<uint8_t> uniformUpToDate;
 
+    // should index by VertexBufferID
+    std::vector<std::array<VkBuffer, MAX_FRAMES_IN_FLIGHT>> vertexBuffers;
+    std::vector<std::array<VmaAllocation, MAX_FRAMES_IN_FLIGHT>> vertexBufferMemorys;
+    std::vector<std::array<VmaAllocationInfo, MAX_FRAMES_IN_FLIGHT>> vertexBuffersMapped;
+    std::vector<void*> vertexBufferData;
+    std::vector<uint32_t> vertexNumInstances;
+    std::vector<uint64_t> vertexBuffersSize;
+    std::vector<uint8_t> vertexUpToDate;
 
-    // should index by MeshID
-    std::vector<VkBuffer> meshVertexBuffers;
-    std::vector<VmaAllocation> meshVertexBufferMemorys;
-    std::vector<VkBuffer> meshIndexBuffers;
-    std::vector<VmaAllocation> meshIndexBufferMemorys;
-    std::vector<uint32_t> meshIndicesSizes;
+    // should index by IndexBufferID
+    std::vector<std::array<VkBuffer, MAX_FRAMES_IN_FLIGHT>> indexBuffers;
+    std::vector<std::array<VmaAllocation, MAX_FRAMES_IN_FLIGHT>> indexBufferMemorys;
+    std::vector<std::array<VmaAllocationInfo, MAX_FRAMES_IN_FLIGHT>> indexBuffersMapped;
+    std::vector<void*> indexBufferData;
+    std::vector<uint32_t> indexBuffersSize;
+    std::vector<uint32_t> indexNumIndices;
+    std::vector<uint8_t> indexUpToDate;
 
     //should index by MaterialID
     std::vector<ShaderID> materialShaderIDs;
@@ -167,11 +179,7 @@ namespace MZ {
 
     bool hasStencilComponent(VkFormat format);
 
-    void updateCamera(uint32_t renderingFrame);
-
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t renderFrame);
-
-    void createViewAndPerspectiveBuffer();
 
     void createDrawCommandBuffer();
 

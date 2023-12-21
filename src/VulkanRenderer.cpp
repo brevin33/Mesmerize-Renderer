@@ -26,8 +26,15 @@ namespace MZ {
         createFramebuffers();
         createCommandBuffers();
         createSyncObjects();
-        createViewAndPerspectiveBuffer();
         createDrawCommandBuffer();
+    }
+
+    int getRenderWidth() {
+        return swapChainExtent.width;
+    }
+
+    int getRenderHeight() {
+        return swapChainExtent.height;
     }
 
     void cleanup() {
@@ -35,25 +42,13 @@ namespace MZ {
 
         cleanupSwapChain();
 
-        for (size_t i = 0; i < meshVertexBuffers.size(); i++)
-        {
-            vmaDestroyBuffer(allocator, meshIndexBuffers[i], meshIndexBufferMemorys[i]);
-            vmaDestroyBuffer(allocator, meshVertexBuffers[i], meshVertexBufferMemorys[i]);
-        }
+
         for (size_t i = 0; i < shaderGraphicsPipelines.size(); i++)
         {
             vkDestroyPipeline(device, shaderGraphicsPipelines[i], nullptr);
             vkDestroyPipelineLayout(device, shaderPipelineLayouts[i], nullptr);
             vkDestroyDescriptorSetLayout(device, shaderDescriptorSetLayouts[i], nullptr);
             vkDestroyDescriptorPool(device, shaderDescriptorPools[i], nullptr);
-        }
-        for (size_t i = 0; i < objectMeshIDs.size(); i++)
-        {
-            free(objectInstanceData[i]);
-            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
-            {
-                vmaDestroyBuffer(allocator, objectInstanceBuffer[i][j], objectInstanceMemory[i][j]);
-            }
         }
 
         for (size_t i = 0; i < textureImages.size(); i++)
@@ -63,17 +58,53 @@ namespace MZ {
             vkDestroyImageView(device, textureImageViews[i], nullptr);
         }
 
-        for (size_t i = 0; i < uniformBuffers.size(); i++)
+        for (size_t l = 0; l < mutUniformBuffers.size(); l++)
         {
+            size_t i = mutUniformBuffers[l];
             for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
                 vmaDestroyBuffer(allocator, uniformBuffers[i][j], uniformBuffersMemory[i][j]);
             }
             free(uniformBufferData[i]);
         }
 
+        for (size_t l = 0; l < constUniformBuffers.size(); l++)
+        {
+            size_t i = constUniformBuffers[l];
+            vmaDestroyBuffer(allocator, uniformBuffers[i][0], uniformBuffersMemory[i][0]);
+        }
+
+        for (size_t l = 0; l < mutVertexBuffers.size(); l++)
+        {
+            size_t i = mutVertexBuffers[l];
+            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                vmaDestroyBuffer(allocator, vertexBuffers[i][j], vertexBufferMemorys[i][j]);
+            }
+            free(vertexBufferData[i]);
+        }
+
+        for (size_t l = 0; l < constVertexBuffers.size(); l++)
+        {
+            size_t i = constVertexBuffers[l];
+            vmaDestroyBuffer(allocator, vertexBuffers[i][0], vertexBufferMemorys[i][0]);
+        }
+
+        for (size_t l = 0; l < mutIndexBuffers.size(); l++)
+        {
+            size_t i = mutIndexBuffers[l];
+            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                vmaDestroyBuffer(allocator, indexBuffers[i][j], indexBufferMemorys[i][j]);
+            }
+            free(indexBufferData[i]);
+        }
+
+        for (size_t l = 0; l < constIndexBuffers.size(); l++)
+        {
+            size_t i = constIndexBuffers[l];
+            vmaDestroyBuffer(allocator, indexBuffers[i][0], indexBufferMemorys[i][0]);
+        }
+
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vmaDestroyBuffer(allocator, drawCommandBuffer[i], drawCommandBufferMemory[i]);
-            vmaDestroyBuffer(allocator,viewPerspectiveBuffer[i], viewPerspectiveBufferMemory[i]);
             
             vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
@@ -96,58 +127,25 @@ namespace MZ {
         vkDestroyInstance(instance, nullptr);
     }
 
-    RenderObject addObject(MeshID mesh, MaterialID material, void* instanceData, uint32_t instanceDataSize){
-        uint32_t objectData = (((uint32_t)mesh) << 16) | material;
-        ObjectID objectID;
-        if (objectDataToObjectID.find(objectData) == objectDataToObjectID.end()) {
-            objectID = objectMeshIDs.size();
-            objectMeshIDs.resize(objectID + 1);
-            objectMaterialIDs.resize(objectID + 1);
-            objectNumInstances.resize(objectID + 1);
-            objectInstanceBuffer.resize(objectID + 1);
-            objectInstanceMemory.resize(objectID + 1);
-            objectInstanceBufferSize.resize(objectID + 1);
-            objectInstanceData.resize(objectID + 1);
-            objectInstanceMemoryMapped.resize(objectID + 1);
-            objectInstanceBufferDataSize.resize(objectID + 1);
+    RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer, VertexBufferID instanceBuffer) {
+        RenderObject renderObject;
+        renderObject.indexBuffer = indexBuffer;
+        renderObject.material = material;
+        renderObject.vertexBuffer = vertexBuffer;
+        renderObject.instanceBuffer = instanceBuffer;
+        renderObject.numVertexBuffers = 2;
+        renderObjects.push_back(renderObject);
+        return (RenderObjectID)(renderObjects.size() - 1);
+    }
 
-            objectInstanceBuffer[objectID].resize(MAX_FRAMES_IN_FLIGHT);
-            objectInstanceMemory[objectID].resize(MAX_FRAMES_IN_FLIGHT);
-            objectInstanceMemoryMapped[objectID].resize(MAX_FRAMES_IN_FLIGHT);
-            for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-            {
-                //createVertexBuffer(instanceData, objectInstanceBuffer[objectID][i], objectInstanceMemory[objectID][i], instanceDataSize);
-                createBuffer(instanceDataSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, objectInstanceBuffer[objectID][i], objectInstanceMemory[objectID][i], PersitantMapping, &objectInstanceMemoryMapped[objectID][i]);
-            }
-            objectInstanceData[objectID] = malloc(instanceDataSize);
-            objectInstanceBufferSize[objectID] = 1;
-            objectInstanceBufferDataSize[objectID] = instanceDataSize;
-            objectNumInstances[objectID] = 0;
-            objectMeshIDs[objectID] = mesh;
-            objectMaterialIDs[objectID] = material;
-        }
-        else objectID = objectDataToObjectID[objectData];
-        objectDataToObjectID[objectData] = objectID;
-        InstanceID instanceID = objectNumInstances[objectID];
-
-        if (objectNumInstances[objectID] >= objectInstanceBufferSize[objectID]) {
-            objectInstanceBufferSize[objectID] *= 2;
-            uint32_t bufferSize = objectInstanceBufferSize[objectID] * instanceDataSize;
-            free(objectInstanceData[objectID]);
-            objectInstanceData[objectID] = malloc(bufferSize);
-            for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-            {
-                vmaDestroyBuffer(allocator, objectInstanceBuffer[objectID][i], objectInstanceMemory[objectID][i]);
-                createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, objectInstanceBuffer[objectID][i], objectInstanceMemory[objectID][i], PersitantMapping, &objectInstanceMemoryMapped[objectID][i]);
-            }
-        }
-
-        memcpy((void*)((uintptr_t)objectInstanceData[objectID] + instanceID * instanceDataSize), instanceData, instanceDataSize);
-        objectNumInstances[objectID] += 1;
-        RenderObject object;
-        object.objectID = objectID;
-        object.instanceID = instanceID;
-        return object;
+    RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer) {
+        RenderObject renderObject;
+        renderObject.indexBuffer = indexBuffer;
+        renderObject.material = material;
+        renderObject.vertexBuffer = vertexBuffer;
+        renderObject.numVertexBuffers = 1;
+        renderObjects.push_back(renderObject);
+        return (RenderObjectID)(renderObjects.size() - 1);
     }
 
     MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers){
@@ -179,22 +177,23 @@ namespace MZ {
     }
 
 
-    UniformBufferID createMutUniformBuffer(void* data, uint32_t bufferSize, Mutability mutability) {
+    UniformBufferID createCPUMutUniformBuffer(void* data, uint32_t bufferSize) {
         UniformBufferID i = (UniformBufferID)uniformBuffers.size();
 
         uniformBuffers.resize(i+1);
         uniformBuffersMemory.resize(i+1);
-        uniFormBuffersMapped.resize(i+1);
+        uniformBuffersMapped.resize(i+1);
         uniformBuffersSize.resize(i+1);
         uniformBufferData.resize(i+1);
+        uniformUpToDate.resize(i + 1);
 
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
-            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i][j], uniformBuffersMemory[i][j], PersitantMapping, &uniFormBuffersMapped[i][j]);
+            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i][j], uniformBuffersMemory[i][j], PersitantMapping, &uniformBuffersMapped[i][j]);
         }
 
-
-        mutBuffers.push_back(i);
+        uniformUpToDate[i] = 0;
+        mutUniformBuffers.push_back(i);
         uniformBufferData[i] = malloc(bufferSize);
         memcpy(uniformBufferData[i], data, bufferSize);
         uniformBuffersSize[i] = bufferSize;
@@ -205,7 +204,7 @@ namespace MZ {
         UniformBufferID i = (UniformBufferID)uniformBuffers.size();
         uniformBuffers.resize(i + 1);
         uniformBuffersMemory.resize(i + 1);
-        uniFormBuffersMapped.resize(i + 1);
+        uniformBuffersMapped.resize(i + 1);
         uniformBuffersSize.resize(i + 1);
         uniformBufferData.resize(i + 1);
 
@@ -213,12 +212,104 @@ namespace MZ {
         createGPUSideOnlyBuffer(data,bufferSize,uniformBuffers[i][0], uniformBuffersMemory[i][0], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
         for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
-            memcpy(uniformBuffers[i][j], uniformBuffers[i][0], sizeof(VkBuffer));
-            memcpy(uniformBuffersMemory[i][j], uniformBuffersMemory[i][0], sizeof(VmaAllocation));
+            uniformBuffers[i][j] = uniformBuffers[i][0];
+            uniformBuffersMemory[i][j] = uniformBuffersMemory[i][0];
         }
+        constUniformBuffers.push_back(i);
 
         return i;
     }
+
+    VertexBufferID createVertexBuffer(void* vertices, uint32_t numVertices, uint64_t bufferSize){
+        VertexBufferID i = (VertexBufferID)vertexBuffers.size();
+        vertexBuffers.resize(i+1);
+        vertexBufferMemorys.resize(i+1);
+        vertexBuffersSize.resize(i + 1);
+        vertexNumInstances.resize(i + 1);
+
+
+        vertexNumInstances[i] = numVertices;
+        vertexBuffersSize[i] = bufferSize;
+        createGPUSideOnlyBuffer(vertices, bufferSize, vertexBuffers[i][0], vertexBufferMemorys[i][0], VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+        for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            vertexBuffers[i][j] = vertexBuffers[i][0];
+            vertexBufferMemorys[i][j] = vertexBufferMemorys[i][0];
+        }
+        constVertexBuffers.push_back(i);
+
+        return i;
+    }
+
+
+    VertexBufferID createCPUMutVertexBuffer(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize){
+        VertexBufferID i = (VertexBufferID)vertexBuffers.size();
+        vertexBuffers.resize(i + 1);
+        vertexBufferMemorys.resize(i + 1);
+        vertexBuffersMapped.resize(i + 1);
+        vertexBufferData.resize(i + 1);
+        vertexBuffersSize.resize(i + 1);
+        vertexUpToDate.resize(i + 1);
+        vertexNumInstances.resize(i + 1);
+
+        vertexNumInstances[i] = numVertices;
+        vertexUpToDate[i] = 0;
+        vertexBuffersSize[i] = bufferSize;
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffers[i][j], vertexBufferMemorys[i][j], PersitantMapping, &vertexBuffersMapped[i][j]);
+        }
+
+        mutVertexBuffers.push_back(i);
+        vertexBufferData[i] = malloc(bufferSize);
+        memcpy(vertexBufferData[i], vertices, numVertices * vertexSize);
+        return i;
+    }
+
+    IndexBufferID createIndexBuffer(void* indices, uint64_t bufferSize) {
+        IndexBufferID i = (IndexBufferID)indexBuffers.size();
+        indexBuffers.resize(i + 1);
+        indexBufferMemorys.resize(i + 1);
+        indexBuffersSize.resize(i + 1);
+        indexNumIndices.resize(i + 1);
+
+        indexNumIndices[i] = bufferSize / sizeof(uint32_t);
+        indexBuffersSize[i] = bufferSize;
+        createGPUSideOnlyBuffer(indices, bufferSize, indexBuffers[i][0], indexBufferMemorys[i][0], VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+        for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            indexBuffers[i][j] = indexBuffers[i][0];
+            indexBufferMemorys[i][j] = indexBufferMemorys[i][0];
+        }
+        constIndexBuffers.push_back(i);
+
+        return i;
+    }
+
+    IndexBufferID createCPUMutIndexBuffer(void* indices, uint32_t numIndices, uint64_t bufferSize){
+        IndexBufferID i = (IndexBufferID)indexBuffers.size();
+        indexBuffers.resize(i + 1);
+        indexBufferMemorys.resize(i + 1);
+        indexBuffersMapped.resize(i + 1);
+        indexBufferData.resize(i + 1);
+        indexNumIndices.resize(i + 1);
+        indexUpToDate.resize(i + 1);
+        indexBuffersSize.resize(i + 1);
+
+        indexNumIndices[i] = numIndices;
+        indexUpToDate[i] = 0;
+        indexBuffersSize[i] = bufferSize;
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            createBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexBuffers[i][j], indexBufferMemorys[i][j], PersitantMapping, &indexBuffersMapped[i][j]);
+        }
+
+        mutIndexBuffers.push_back(i);
+        indexBufferData[i] = malloc(bufferSize);
+        memcpy(uniformBufferData[i], indices, numIndices * sizeof(uint32_t));
+        return i;
+    }
+
 
     TextureID createTexture(std::string textureFilepath) {
         TextureID i = (TextureID)textureImages.size();
@@ -232,24 +323,19 @@ namespace MZ {
         return i;
     }
 
-
-    MeshID createMesh(void* vertices, uint32_t* indices, uint32_t verticesSize, uint32_t vertexSize, uint32_t numIndices)
-    {
-        MeshID i = (MeshID)meshVertexBuffers.size();
-        meshVertexBuffers.resize(i + 1);
-        meshVertexBufferMemorys.resize(i + 1);
-        meshIndexBuffers.resize(i + 1);
-        meshIndexBufferMemorys.resize(i + 1);
-        meshIndicesSizes.resize(i + 1);
-
-        createVertexBuffer(vertices, meshVertexBuffers[i], meshVertexBufferMemorys[i], vertexSize * verticesSize);
-        createIndexBuffer(indices, meshIndexBuffers[i], meshIndexBufferMemorys[i], numIndices);
-        meshIndicesSizes[i] = numIndices;
-        return i;
+    void updateCPUMutUniformBuffer(UniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset) {
+        memcpy((void*)((intptr_t)uniformBufferData[buffer] + offset), data, dataSize);
+        uniformUpToDate[buffer] = 0;
     }
 
-    void updateBuffer(UniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset) {
-        memcpy((void*)((intptr_t)uniformBufferData[buffer] + offset), data, dataSize);
+    void updateCPUMutVertexBuffer(VertexBufferID buffer, void* data, uint32_t dataSize, uint32_t offset) {
+        memcpy((void*)((intptr_t)vertexBufferData[buffer] + offset), data, dataSize);
+        vertexUpToDate[buffer] = 0;
+    }
+
+    void updateCPUMutIndexBuffer(IndexBufferID buffer, void* data, uint32_t dataSize, uint32_t offset) {
+        memcpy((void*)((intptr_t)indexBufferData[buffer] + offset), data, dataSize);
+        indexUpToDate[buffer] = 0;
     }
 
     void drawFrame() {
@@ -268,16 +354,29 @@ namespace MZ {
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        updateCamera(renderingFrame);
-
-        for (size_t i = 0; i < objectInstanceBuffer.size(); i++)
+        for (size_t j = 0; j < mutUniformBuffers.size(); j++)
         {
-            memcpy(objectInstanceMemoryMapped[i][renderingFrame].pMappedData, objectInstanceData[i], objectInstanceBufferDataSize[i]);
+            UniformBufferID i = mutUniformBuffers[j];
+            if (uniformUpToDate[i] != MAX_FRAMES_IN_FLIGHT)
+            {
+                memcpy(uniformBuffersMapped[i][renderingFrame].pMappedData, uniformBufferData[i], uniformBuffersSize[i]);
+                uniformUpToDate[i]++;
+            }
         }
-
-        for (size_t i = 0; i < mutBuffers.size(); i++)
+        for (size_t j = 0; j < mutVertexBuffers.size(); j++)
         {
-            memcpy(uniFormBuffersMapped[mutBuffers[i]][renderingFrame].pMappedData, uniformBufferData[mutBuffers[i]], uniformBuffersSize[mutBuffers[i]]);
+            VertexBufferID i = mutVertexBuffers[j];
+            if (vertexUpToDate[i] != MAX_FRAMES_IN_FLIGHT) {
+                memcpy(vertexBuffersMapped[i][renderingFrame].pMappedData, vertexBufferData[i], vertexBuffersSize[i]);
+                vertexUpToDate[i]++;
+            }
+        }
+        for (size_t j = 0; j < mutIndexBuffers.size(); j++)
+        {
+            IndexBufferID i = mutIndexBuffers[j];
+            if (indexUpToDate[i] != MAX_FRAMES_IN_FLIGHT) {
+                memcpy(indexBuffersMapped[i][renderingFrame].pMappedData, indexBufferData[i], indexBuffersSize[i]);
+            }
         }
 
         vkResetFences(device, 1, &inFlightFences[renderingFrame]);
@@ -330,17 +429,14 @@ namespace MZ {
 
     }
 
-    void updateRenderObjectData(RenderObject renderObject, void* data, uint32_t dataSize) {
-        memcpy((void*)((uintptr_t)objectInstanceData[renderObject.objectID] + renderObject.instanceID * dataSize), data, dataSize);
-    }
-
     //----------------------------------------------------------------------------- PRIVATE ---------------------------------------------------- PRIVATE ----------------------------------------------------------------
 
     void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame) {
         VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[renderFrame].pMappedData;
-        for (size_t i = 0; i < objectMeshIDs.size() - 1; i++) {
-            drawCommands[i].indexCount = meshIndicesSizes[objectMeshIDs[i]];
-            drawCommands[i].instanceCount = objectNumInstances[i];
+        for (size_t i = 0; i < renderObjects.size() - 1; i++) {
+            RenderObject renderObject = renderObjects[i];
+            drawCommands[i].indexCount = indexNumIndices[renderObject.indexBuffer];
+            drawCommands[i].instanceCount = renderObject.numVertexBuffers == 2 ? vertexNumInstances[renderObject.instanceBuffer] : 1;
             drawCommands[i].firstIndex = 0;
             drawCommands[i].vertexOffset = 0;
             drawCommands[i].firstInstance = 0;
@@ -348,18 +444,21 @@ namespace MZ {
 
 
         //drawing
-        for (size_t i = 0; i < objectMeshIDs.size() - 1; i++)
+        for (size_t i = 0; i < renderObjects.size() - 1; i++)
         {
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[materialShaderIDs[objectMaterialIDs[i]]]);
+            RenderObject renderObject = renderObjects[i];
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[materialShaderIDs[renderObject.material]]);
 
-            VkBuffer vertexBuffers[] = { meshVertexBuffers[objectMeshIDs[i]], objectInstanceBuffer[i][renderFrame]};
+            VkBuffer vertex = vertexBuffers[renderObject.vertexBuffer][renderFrame];
+            VkBuffer instance = vertexBuffers[renderObject.instanceBuffer][renderFrame];
+            VkBuffer vertexBuffers[] = { vertex, instance };
             VkDeviceSize offsets[] = { 0, 0 };
-            vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
+            vkCmdBindVertexBuffers(commandBuffer, 0, renderObjects[i].numVertexBuffers, vertexBuffers, offsets);
 
 
-            vkCmdBindIndexBuffer(commandBuffer, meshIndexBuffers[objectMeshIDs[i]], 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindIndexBuffer(commandBuffer, indexBuffers[renderObject.indexBuffer][renderFrame], 0, VK_INDEX_TYPE_UINT32);
 
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[materialShaderIDs[objectMaterialIDs[i]]], 0, 1, &materialDescriptorSets[objectMaterialIDs[i]][renderFrame], 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[materialShaderIDs[renderObject.material]], 0, 1, &materialDescriptorSets[renderObject.material][renderFrame], 0, nullptr);
 
             VkDeviceSize indirect_offset = i * sizeof(VkDrawIndexedIndirectCommand);
             uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
@@ -638,14 +737,6 @@ namespace MZ {
         endSingleTimeCommands(commandBuffer);
     }
 
-    void updateCamera(uint32_t renderingFrame) {
-        glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-        proj[1][1] *= -1;
-        view = proj * view;
-        memcpy(viewPerspectiveBufferMapped[renderingFrame].pMappedData, &view, sizeof(view));
-    }
-
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels) {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
@@ -729,11 +820,8 @@ namespace MZ {
 
     void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures, uint32_t numBuffers)
     {
-        std::vector<VkDescriptorPoolSize> poolSizes(numTextures+ numBuffers+1);
+        std::vector<VkDescriptorPoolSize> poolSizes(numTextures+ numBuffers);
         uint32_t bindings = 0;
-        poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        bindings++;
         for (size_t i = 0; i < numBuffers; i++)
         {
             poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -782,11 +870,6 @@ namespace MZ {
                 BufferInfo[i].range = uniformBuffersSize[bufferIDs[i]];
             }
 
-            VkDescriptorBufferInfo viewPerspectiveBufferInfo{};
-            viewPerspectiveBufferInfo.buffer = viewPerspectiveBuffer[j];
-            viewPerspectiveBufferInfo.offset = 0;
-            viewPerspectiveBufferInfo.range = sizeof(glm::mat4);
-
             std::vector<VkDescriptorImageInfo> imageInfo(numTextureIDs);
             for (size_t i = 0; i < numTextureIDs; i++)
             {
@@ -795,18 +878,9 @@ namespace MZ {
                 imageInfo[i].sampler = textureSamplers[textureIDs[i]];
             }
 
-            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs + 1);
+            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs);
 
             int dstBinding = 0;
-
-            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[0].dstSet = descriptorSets[j];
-            descriptorWrites[0].dstBinding = dstBinding;
-            descriptorWrites[0].dstArrayElement = 0;
-            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[0].descriptorCount = 1;
-            descriptorWrites[0].pBufferInfo = &viewPerspectiveBufferInfo;
-            dstBinding++;
 
             for (size_t i = 0; i < numBuffers; i++)
             {
@@ -854,17 +928,6 @@ namespace MZ {
         vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferMemory);
     }
 
-    void createViewAndPerspectiveBuffer() {
-        VkDeviceSize bufferSize = sizeof(glm::mat4x4);
-        viewPerspectiveBuffer.resize(MAX_FRAMES_IN_FLIGHT);
-        viewPerspectiveBufferMemory.resize(MAX_FRAMES_IN_FLIGHT);
-        viewPerspectiveBufferMapped.resize(MAX_FRAMES_IN_FLIGHT);
-
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, viewPerspectiveBuffer[i], viewPerspectiveBufferMemory[i], PersitantMapping, &viewPerspectiveBufferMapped[i]);
-        }
-
-    }
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes)
     {
@@ -1000,16 +1063,7 @@ namespace MZ {
     {
         uint32_t binding = 0;
 
-        VkDescriptorSetLayoutBinding viewPerspectiveLayoutBinding{};
-        viewPerspectiveLayoutBinding.binding = binding;
-        viewPerspectiveLayoutBinding.descriptorCount = 1;
-        viewPerspectiveLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        viewPerspectiveLayoutBinding.pImmutableSamplers = nullptr;
-        viewPerspectiveLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        binding++;
-
-        std::vector<VkDescriptorSetLayoutBinding> bindings(numTextures + numBuffers + 1);
-        bindings[0] = viewPerspectiveLayoutBinding;
+        std::vector<VkDescriptorSetLayoutBinding> bindings(numTextures + numBuffers);
 
         for (size_t i = 0; i < numBuffers; i++)
         {

@@ -4,8 +4,6 @@ void Model::unload() {
     modelVertices.clear();
     modelIndices.clear();
     modelTextures.clear();
-    meshIDs.clear();
-    materialIDs.clear();
 };
 
 Model::Model(std::string modelFilePath) {
@@ -23,24 +21,6 @@ Model::Model(std::string modelFilePath) {
     directory = modelFilePath.substr(0, modelFilePath.find_last_of('/')) + '/';
 
     processNode(scene->mRootNode, scene);
-
-    materialIDs.resize(modelVertices.size());
-    meshIDs.resize(modelVertices.size());
-    for (size_t i = 0; i < modelVertices.size(); i++)
-    {
-        materialIDs[i] = modelMaterialToMaterial[assimpMaterialID[i]];
-        meshIDs[i] = MZ::createMesh(modelVertices[i].data(), modelIndices[i].data(), modelVertices[i].size(), sizeof(modelVertices[i][0]), modelIndices[i].size());
-    }
-}
-
-std::vector<MZ::RenderObject> Model::addToRenderer() {
-    std::vector<MZ::RenderObject> ids(meshIDs.size());
-    for (size_t i = 0; i < ids.size(); i++)
-    {
-        glm::mat4 model = glm::mat4(1.0f);
-        ids[i] = MZ::addObject(meshIDs[i], materialIDs[i], &model, sizeof(glm::mat4));
-    }
-    return ids;
 }
 
 void Model::processNode(aiNode* node, const aiScene* scene)
@@ -114,10 +94,7 @@ void Model::processMesh(aiMesh* mesh, const aiScene* scene) {
 
     modelVertices.push_back(vertices);
     modelIndices.push_back(indices);
-    modelTextures.push_back(textures);
     assimpMaterialID.push_back(mesh->mMaterialIndex);
-
-    if (modelMaterialToMaterial.find(mesh->mMaterialIndex) != modelMaterialToMaterial.end()) return;
 
     // 1. diffuse maps
     std::vector<std::string> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
@@ -131,17 +108,7 @@ void Model::processMesh(aiMesh* mesh, const aiScene* scene) {
     // 4. height maps
     //std::vector<std::string> heightMaps = loadMaterialTextures(material, aiTextureType_AMBIENT, "texture_height");
     //textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
-    MZ::VertexValueType instanceType = MZ::float4x4;
-
-
-    MZ::ShaderID shaderID = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", textures.size(), 0, Vertex::getVertexValueTypes().data(), Vertex::getVertexValueTypes().size(), &instanceType, 1);
-    std::vector<MZ::TextureID> textureIDs(textures.size());
-    for (size_t i = 0; i < textures.size(); i++)
-    {
-        textureIDs[i] = MZ::createTexture(textures[i]);
-    }
-
-    modelMaterialToMaterial[mesh->mMaterialIndex] = MZ::createMaterial(shaderID, textureIDs.data(), textureIDs.size(), nullptr, 0);
+    modelTextures.push_back(textures);
 }
 
 std::vector<std::string> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName)
