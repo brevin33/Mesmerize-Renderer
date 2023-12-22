@@ -6,7 +6,6 @@ Mesmerize Renderer is a mid-low level Renderer API built on top of Vulkan, but I
 - GLM
 - GLFW
 - Vulkan
-- Assimp
 - Vulkan Memory Allocator
 
 ## Install
