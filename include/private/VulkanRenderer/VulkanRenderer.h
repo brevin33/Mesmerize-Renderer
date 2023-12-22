@@ -57,6 +57,7 @@ namespace MZ {
 
     VkQueue graphicsQueue;
     VkQueue presentQueue;
+    VkQueue computeQueue;
 
     VkSwapchainKHR swapChain;
     std::vector<VkImage> swapChainImages;
@@ -68,20 +69,26 @@ namespace MZ {
     VkRenderPass renderPass;
 
     VkCommandPool commandPool;
+    VkCommandPool computeCommandPool;
 
-    std::vector<VkCommandBuffer> commandBuffers;
 
-    std::vector<VkBuffer> drawCommandBuffer;
-    std::vector<VmaAllocation> drawCommandBufferMemory;
-    std::vector<VmaAllocationInfo> drawCommandBufferMapped;
+    std::array<VkCommandBuffer,MAX_FRAMES_IN_FLIGHT> commandBuffers;
+    std::array<VkCommandBuffer, MAX_FRAMES_IN_FLIGHT> computeCommandBuffers;
+
+
+    std::array<VkBuffer, MAX_FRAMES_IN_FLIGHT> drawCommandBuffer;
+    std::array<VmaAllocation, MAX_FRAMES_IN_FLIGHT> drawCommandBufferMemory;
+    std::array<VmaAllocationInfo, MAX_FRAMES_IN_FLIGHT> drawCommandBufferMapped;
 
     VkImage depthImage;
     VmaAllocation depthImageMemory;
     VkImageView depthImageView;
 
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
+    std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> imageAvailableSemaphores;
+    std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> renderFinishedSemaphores;
+    std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> computeFinishedSemaphores;
+    std::array<VkFence, MAX_FRAMES_IN_FLIGHT> inFlightFences;
+    std::array<VkFence, MAX_FRAMES_IN_FLIGHT> computeInFlightFences;
     uint32_t currentFrame = 0;
 
     VkImage colorImage;
@@ -97,14 +104,15 @@ namespace MZ {
     std::vector<VertexBufferID> mutVertexBuffers;
     std::vector<IndexBufferID> mutIndexBuffers;
 
+    std::vector<UniformBufferID> mutGPUUniformBuffers;
+    std::vector<VertexBufferID> mutGPUVertexBuffers;
+    std::vector<IndexBufferID> mutGPUIndexBuffers;
+
     std::vector<UniformBufferID> constUniformBuffers;
     std::vector<VertexBufferID> constVertexBuffers;
     std::vector<IndexBufferID> constIndexBuffers;
 
-
-
     // should index by RenderObjectID
-
     struct RenderObject {
         MaterialID material;
         VertexBufferID vertexBuffer;
@@ -113,7 +121,23 @@ namespace MZ {
         uint8_t numVertexBuffers;
     };
     std::vector<RenderObject> renderObjects;
-    
+
+    // should index by ComputeID
+    struct Compute {
+        ComputeShaderID shaderID;
+        uint32_t x;
+        uint32_t y;
+        uint32_t z;
+        std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT> descriptorSets;
+    };
+    std::vector<Compute> computes;
+
+    //should index by ComputeShaderID
+    std::vector<VkDescriptorSetLayout> computeDescriptorSetLayout;
+    std::vector<VkPipelineLayout> computePipelineLayout;
+    std::vector<VkPipeline> computePipeline;
+    std::vector<VkDescriptorPool> computeDescriptorPool;
+
     // should index by UniformBufferID
     std::vector<std::array<VkBuffer, MAX_FRAMES_IN_FLIGHT>> uniformBuffers;
     std::vector<std::array<VmaAllocation, MAX_FRAMES_IN_FLIGHT>> uniformBuffersMemory;
@@ -142,7 +166,7 @@ namespace MZ {
 
     //should index by MaterialID
     std::vector<ShaderID> materialShaderIDs;
-    std::vector<std::vector<VkDescriptorSet>> materialDescriptorSets;
+    std::vector<std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT>> materialDescriptorSets;
 
     // should index by ShaderID
     std::vector<VkPipelineLayout> shaderPipelineLayouts;
@@ -186,11 +210,14 @@ namespace MZ {
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t renderFrame);
 
+    void recordComputeCommandBuffer(VkCommandBuffer commandBuffer);
+
     void createDrawCommandBuffer();
 
-    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures, uint32_t numBuffers);
+    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures, uint32_t numBuffers, uint32_t numStorageBuffers, uint32_t numStorageIamges);
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers);
+    void createDescriptorSets(std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers,
+        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex);
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
 
@@ -204,9 +231,13 @@ namespace MZ {
 
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VmaAllocation& bufferMemory, BufferMappingType mapping, VmaAllocationInfo* allocationInfo = nullptr);
 
+    void createComputeDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, uint32_t numUbos, uint32_t numImages, uint32_t numStorageBuffer, uint32_t numStorageImages);
+
+    void createComputePipeline(std::string computeShaderFilePath, VkDescriptorSetLayout& descriptorSetLayout, VkPipelineLayout& pipleineLayout, VkPipeline& pipeline);
+
     VkCommandBuffer beginSingleTimeCommands();
 
-    void createGPUSideOnlyBuffer(void* data, VkDeviceSize bufferSize, VkBuffer& buffer, VmaAllocation& bufferMemory, VkBufferUsageFlags useageFlags);
+    void createGPUSideOnlyBuffer(void* data, uint64_t dataSize, VkDeviceSize bufferSize, VkBuffer& buffer, VmaAllocation& bufferMemory, VkBufferUsageFlags useageFlags);
 
     void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
@@ -245,6 +276,8 @@ namespace MZ {
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
     void createRenderPass();
+
+    void createComputeCommandBuffers();
 
     void createSwapChain();
 

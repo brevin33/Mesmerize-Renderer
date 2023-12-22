@@ -27,6 +27,7 @@ namespace MZ {
         createCommandBuffers();
         createSyncObjects();
         createDrawCommandBuffer();
+        createComputeCommandBuffers();
     }
 
     int getRenderWidth() {
@@ -51,6 +52,14 @@ namespace MZ {
             vkDestroyDescriptorPool(device, shaderDescriptorPools[i], nullptr);
         }
 
+        for (size_t i = 0; i < computeDescriptorPool.size(); i++)
+        {
+            vkDestroyPipeline(device, computePipeline[i], nullptr);
+            vkDestroyPipelineLayout(device, computePipelineLayout[i], nullptr);
+            vkDestroyDescriptorSetLayout(device, computeDescriptorSetLayout[i], nullptr);
+            vkDestroyDescriptorPool(device, computeDescriptorPool[i], nullptr);
+        }
+
         for (size_t i = 0; i < textureImages.size(); i++)
         {
             vmaDestroyImage(allocator, textureImages[i], textureImageMemorys[i]);
@@ -65,6 +74,14 @@ namespace MZ {
                 vmaDestroyBuffer(allocator, uniformBuffers[i][j], uniformBuffersMemory[i][j]);
             }
             free(uniformBufferData[i]);
+        }
+
+        for (size_t l = 0; l < mutGPUUniformBuffers.size(); l++)
+        {
+            size_t i = mutGPUUniformBuffers[l];
+            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                vmaDestroyBuffer(allocator, uniformBuffers[i][j], uniformBuffersMemory[i][j]);
+            }
         }
 
         for (size_t l = 0; l < constUniformBuffers.size(); l++)
@@ -82,6 +99,14 @@ namespace MZ {
             free(vertexBufferData[i]);
         }
 
+        for (size_t l = 0; l < mutGPUVertexBuffers.size(); l++)
+        {
+            size_t i = mutGPUVertexBuffers[l];
+            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                vmaDestroyBuffer(allocator, vertexBuffers[i][j], vertexBufferMemorys[i][j]);
+            }
+        }
+
         for (size_t l = 0; l < constVertexBuffers.size(); l++)
         {
             size_t i = constVertexBuffers[l];
@@ -97,6 +122,14 @@ namespace MZ {
             free(indexBufferData[i]);
         }
 
+        for (size_t l = 0; l < mutGPUIndexBuffers.size(); l++)
+        {
+            size_t i = mutGPUIndexBuffers[l];
+            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                vmaDestroyBuffer(allocator, indexBuffers[i][j], indexBufferMemorys[i][j]);
+            }
+        }
+
         for (size_t l = 0; l < constIndexBuffers.size(); l++)
         {
             size_t i = constIndexBuffers[l];
@@ -108,13 +141,17 @@ namespace MZ {
             
             vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+            vkDestroySemaphore(device, computeFinishedSemaphores[i], nullptr);
             vkDestroyFence(device, inFlightFences[i], nullptr);
+            vkDestroyFence(device, computeInFlightFences[i], nullptr);
         }
 
         vkDestroyRenderPass(device, renderPass, nullptr);
 
 
         vkDestroyCommandPool(device, commandPool, nullptr);
+        vkDestroyCommandPool(device, computeCommandPool, nullptr);
+
 
         vmaDestroyAllocator(allocator);
         vkDestroyDevice(device, nullptr);
@@ -148,13 +185,27 @@ namespace MZ {
         return (RenderObjectID)(renderObjects.size() - 1);
     }
 
+    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex){
+        Compute compute;
+        compute.x = xDispatch;
+        compute.y = yDispatch;
+        compute.z = zDispatch;
+        compute.shaderID = computes.size();
+        
+        createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, uniformBuffers, numUniformBuffers, storageUniforms, numStorageUniforms, storageVertex, numStorageVertex, storageIndex, numStorageIndex);
+
+        computes.push_back(compute);
+        return (ComputeID)(computes.size() - 1);
+
+    }
+
     MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers){
         MaterialID i = (MaterialID)materialShaderIDs.size();
         materialShaderIDs.resize(i+1);
         materialDescriptorSets.resize(i+1);
 
         materialShaderIDs[i] = shaderID;
-        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers);
+        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers, nullptr, 0, nullptr, 0, nullptr, 0);
 
         return i;
     }
@@ -169,10 +220,25 @@ namespace MZ {
         shaderPipelineLayouts.resize(i + 1);
         shaderDescriptorPools.resize(i + 1);
 
-        createDescriptorPool(shaderDescriptorPools[i], numTextures, numBuffers);
+        createDescriptorPool(shaderDescriptorPools[i], numTextures, numBuffers,0,0);
         createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures, numBuffers);
         createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues, numVertexValues, InstanceTypes, numInstanceTypes);
 
+        return i;
+    }
+
+    ComputeShaderID createComputeShader(std::string computeShaderPath, uint32_t numUniformBuffers, uint32_t numStaticTextures, uint32_t numStorageBuffers, uint32_t numStorageTextues)
+    {
+        ComputeShaderID i = (ComputeShaderID)computePipeline.size();
+
+        computeDescriptorSetLayout.resize(i+1);
+        computePipelineLayout.resize(i+1);
+        computePipeline.resize(i+1);
+        computeDescriptorPool.resize(i+1);
+
+        createDescriptorPool(computeDescriptorPool[i], numStaticTextures, numUniformBuffers, numStorageBuffers, numStorageTextues);
+        createComputeDescriptorSetLayout(computeDescriptorSetLayout[i], numUniformBuffers, numStaticTextures, numStorageBuffers, numStorageTextues);
+        createComputePipeline(computeShaderPath, computeDescriptorSetLayout[i], computePipelineLayout[i], computePipeline[i]);
         return i;
     }
 
@@ -200,6 +266,27 @@ namespace MZ {
         return i;
     }
 
+    UniformBufferID createGPUMutUniformBuffer(void* data, uint32_t bufferSize) {
+        UniformBufferID i = (UniformBufferID)uniformBuffers.size();
+
+        uniformBuffers.resize(i + 1);
+        uniformBuffersMemory.resize(i + 1);
+        uniformBuffersMapped.resize(i + 1);
+        uniformBuffersSize.resize(i + 1);
+        uniformBufferData.resize(i + 1);
+        uniformUpToDate.resize(i + 1);
+
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            createGPUSideOnlyBuffer(data, bufferSize, bufferSize, uniformBuffers[i][j], uniformBuffersMemory[i][j], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        }
+
+        uniformUpToDate[i] = 0;
+        mutGPUUniformBuffers.push_back(i);
+        uniformBuffersSize[i] = bufferSize;
+        return i;
+    }
+
     UniformBufferID createUniformBuffer(void* data, uint32_t bufferSize) {
         UniformBufferID i = (UniformBufferID)uniformBuffers.size();
         uniformBuffers.resize(i + 1);
@@ -209,7 +296,7 @@ namespace MZ {
         uniformBufferData.resize(i + 1);
 
         uniformBuffersSize[i] = bufferSize;
-        createGPUSideOnlyBuffer(data,bufferSize,uniformBuffers[i][0], uniformBuffersMemory[i][0], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        createGPUSideOnlyBuffer(data, bufferSize,bufferSize,uniformBuffers[i][0], uniformBuffersMemory[i][0], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
         for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
             uniformBuffers[i][j] = uniformBuffers[i][0];
@@ -230,7 +317,7 @@ namespace MZ {
 
         vertexNumInstances[i] = numVertices;
         vertexBuffersSize[i] = bufferSize;
-        createGPUSideOnlyBuffer(vertices, bufferSize, vertexBuffers[i][0], vertexBufferMemorys[i][0], VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+        createGPUSideOnlyBuffer(vertices, bufferSize, bufferSize, vertexBuffers[i][0], vertexBufferMemorys[i][0], VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
         for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
             vertexBuffers[i][j] = vertexBuffers[i][0];
@@ -266,6 +353,28 @@ namespace MZ {
         return i;
     }
 
+    VertexBufferID createGPUMutVertexBuffer(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize) {
+        VertexBufferID i = (VertexBufferID)vertexBuffers.size();
+        vertexBuffers.resize(i + 1);
+        vertexBufferMemorys.resize(i + 1);
+        vertexBuffersMapped.resize(i + 1);
+        vertexBufferData.resize(i + 1);
+        vertexBuffersSize.resize(i + 1);
+        vertexUpToDate.resize(i + 1);
+        vertexNumInstances.resize(i + 1);
+
+        vertexNumInstances[i] = numVertices;
+        vertexUpToDate[i] = 0;
+        vertexBuffersSize[i] = bufferSize;
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            createGPUSideOnlyBuffer(vertices, numVertices * vertexSize, bufferSize, vertexBuffers[i][j], vertexBufferMemorys[i][j], VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        }
+
+        mutGPUVertexBuffers.push_back(i);
+        return i;
+    }
+
     IndexBufferID createIndexBuffer(void* indices, uint64_t bufferSize) {
         IndexBufferID i = (IndexBufferID)indexBuffers.size();
         indexBuffers.resize(i + 1);
@@ -275,7 +384,7 @@ namespace MZ {
 
         indexNumIndices[i] = bufferSize / sizeof(uint32_t);
         indexBuffersSize[i] = bufferSize;
-        createGPUSideOnlyBuffer(indices, bufferSize, indexBuffers[i][0], indexBufferMemorys[i][0], VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+        createGPUSideOnlyBuffer(indices, bufferSize, bufferSize, indexBuffers[i][0], indexBufferMemorys[i][0], VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
         for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
             indexBuffers[i][j] = indexBuffers[i][0];
@@ -307,6 +416,28 @@ namespace MZ {
         mutIndexBuffers.push_back(i);
         indexBufferData[i] = malloc(bufferSize);
         memcpy(uniformBufferData[i], indices, numIndices * sizeof(uint32_t));
+        return i;
+    }
+
+    IndexBufferID createGPUMutIndexBuffer(void* indices, uint32_t numIndices, uint64_t bufferSize) {
+        IndexBufferID i = (IndexBufferID)indexBuffers.size();
+        indexBuffers.resize(i + 1);
+        indexBufferMemorys.resize(i + 1);
+        indexBuffersMapped.resize(i + 1);
+        indexBufferData.resize(i + 1);
+        indexNumIndices.resize(i + 1);
+        indexUpToDate.resize(i + 1);
+        indexBuffersSize.resize(i + 1);
+
+        indexNumIndices[i] = numIndices;
+        indexUpToDate[i] = 0;
+        indexBuffersSize[i] = bufferSize;
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            createGPUSideOnlyBuffer(indices, numIndices * sizeof(uint32_t), bufferSize, indexBuffers[i][j], indexBufferMemorys[i][j], VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        }
+
+        mutGPUIndexBuffers.push_back(i);
         return i;
     }
 
@@ -379,28 +510,46 @@ namespace MZ {
             }
         }
 
-        vkResetFences(device, 1, &inFlightFences[renderingFrame]);
+        //compute stuff
+        vkWaitForFences(device, 1, &computeInFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        vkResetFences(device, 1, &computeInFlightFences[currentFrame]);
 
-        vkResetCommandBuffer(commandBuffers[renderingFrame], /*VkCommandBufferResetFlagBits*/ 0);
-        recordCommandBuffer(commandBuffers[renderingFrame], imageIndex, renderingFrame);
+        vkResetCommandBuffer(computeCommandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
+
+        recordComputeCommandBuffer(computeCommandBuffers[currentFrame]);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[renderingFrame] };
-        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &computeCommandBuffers[currentFrame];
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = &computeFinishedSemaphores[currentFrame];
+
+        if (vkQueueSubmit(computeQueue, 1, &submitInfo, computeInFlightFences[currentFrame]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to submit compute command buffer!");
+        };
+
+        // graphics stuff
+        vkResetFences(device, 1, &inFlightFences[currentFrame]);
+
+        vkResetCommandBuffer(commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
+        recordCommandBuffer(commandBuffers[currentFrame], imageIndex, renderingFrame);
+
+        VkSemaphore waitSemaphores[] = { computeFinishedSemaphores[currentFrame], imageAvailableSemaphores[currentFrame] };
+        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        submitInfo.waitSemaphoreCount = 2;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
-
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffers[renderingFrame];
-
-        VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[renderingFrame] };
+        submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
         submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = signalSemaphores;
+        submitInfo.pSignalSemaphores = &renderFinishedSemaphores[currentFrame];
 
-        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[renderingFrame]) != VK_SUCCESS) {
+        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
@@ -408,7 +557,7 @@ namespace MZ {
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
         presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores = signalSemaphores;
+        presentInfo.pWaitSemaphores = &renderFinishedSemaphores[currentFrame];
 
         VkSwapchainKHR swapChains[] = { swapChain };
         presentInfo.swapchainCount = 1;
@@ -425,6 +574,7 @@ namespace MZ {
         else if (result != VK_SUCCESS) {
             throw std::runtime_error("failed to present swap chain image!");
         }
+
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 
     }
@@ -455,7 +605,6 @@ namespace MZ {
             VkDeviceSize offsets[] = { 0, 0 };
             vkCmdBindVertexBuffers(commandBuffer, 0, renderObjects[i].numVertexBuffers, vertexBuffers, offsets);
 
-
             vkCmdBindIndexBuffer(commandBuffer, indexBuffers[renderObject.indexBuffer][renderFrame], 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[materialShaderIDs[renderObject.material]], 0, 1, &materialDescriptorSets[renderObject.material][renderFrame], 0, nullptr);
@@ -477,6 +626,30 @@ namespace MZ {
         allocatorCreateInfo.pVulkanFunctions = nullptr;
 
         vmaCreateAllocator(&allocatorCreateInfo, &allocator);
+    }
+
+    void recordComputeCommandBuffer(VkCommandBuffer commandBuffer) {
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("failed to begin recording compute command buffer!");
+        }
+
+        for (size_t i = 0; i < computes.size(); i++)
+        {
+            Compute compute = computes[i];
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline[compute.shaderID]);
+
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout[compute.shaderID], 0, 1, &compute.descriptorSets[currentFrame], 0, nullptr);
+
+            vkCmdDispatch(commandBuffer, compute.x, compute.y, compute.z);
+        }
+
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed to record compute command buffer!");
+        }
+
     }
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t renderFrame)
@@ -804,9 +977,6 @@ namespace MZ {
     }
 
     void createDrawCommandBuffer() {
-        drawCommandBuffer.resize(MAX_FRAMES_IN_FLIGHT);
-        drawCommandBufferMemory.resize(MAX_FRAMES_IN_FLIGHT);
-        drawCommandBufferMapped.resize(MAX_FRAMES_IN_FLIGHT);
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
         {
             createBuffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, drawCommandBuffer[i], drawCommandBufferMemory[i], PersitantMapping, &drawCommandBufferMapped[i]);
@@ -818,7 +988,7 @@ namespace MZ {
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     }
 
-    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures, uint32_t numBuffers)
+    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures, uint32_t numBuffers, uint32_t numStorageBuffers, uint32_t numStorageIamges)
     {
         std::vector<VkDescriptorPoolSize> poolSizes(numTextures+ numBuffers);
         uint32_t bindings = 0;
@@ -828,12 +998,25 @@ namespace MZ {
             poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
             bindings++;
         }
-        for (size_t i = 2; i <= numTextures + 1; i++)
+        for (size_t i = 0; i < numTextures; i++)
         {
             poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
             bindings++;
         }
+        for (size_t i = 0; i < numStorageBuffers; i++)
+        {
+            poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+            bindings++;
+        }
+        for (size_t i = 0; i < numStorageIamges; i++)
+        {
+            poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+            bindings++;
+        }
+
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -846,7 +1029,8 @@ namespace MZ {
         }
     }
 
-    void createDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers)
+    void createDescriptorSets(std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, 
+        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex)
     {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -855,7 +1039,6 @@ namespace MZ {
         allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
         allocInfo.pSetLayouts = layouts.data();
 
-        descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
         if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate descriptor sets!");
         }
@@ -878,7 +1061,31 @@ namespace MZ {
                 imageInfo[i].sampler = textureSamplers[textureIDs[i]];
             }
 
-            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs);
+            std::vector<VkDescriptorBufferInfo> storageUniformBufferInfo(numStorageUniforms);
+            for (size_t i = 0; i < numStorageUniforms; i++)
+            {
+                BufferInfo[i].buffer = uniformBuffers[storageUniforms[i]][j];
+                BufferInfo[i].offset = 0;
+                BufferInfo[i].range = uniformBuffersSize[storageUniforms[i]];
+            }
+
+            std::vector<VkDescriptorBufferInfo> storageVertexBufferInfo(numStorageVertex);
+            for (size_t i = 0; i < numStorageVertex; i++)
+            {
+                BufferInfo[i].buffer = vertexBuffers[storageVertex[i]][j];
+                BufferInfo[i].offset = 0;
+                BufferInfo[i].range = vertexBuffersSize[storageVertex[i]];
+            }
+
+            std::vector<VkDescriptorBufferInfo> storageIndexBufferInfo(numStorageVertex);
+            for (size_t i = 0; i < numStorageIndex; i++)
+            {
+                BufferInfo[i].buffer = indexBuffers[storageIndex[i]][j];
+                BufferInfo[i].offset = 0;
+                BufferInfo[i].range = indexBuffersSize[storageIndex[i]];
+            }
+
+            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs + numStorageUniforms + numStorageIndex + numStorageVertex);
 
             int dstBinding = 0;
 
@@ -906,19 +1113,57 @@ namespace MZ {
                 dstBinding++;
             }
 
+            for (size_t i = 0; i < numStorageUniforms; i++)
+            {
+                descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                descriptorWrites[dstBinding].dstSet = descriptorSets[j];
+                descriptorWrites[dstBinding].dstBinding = dstBinding;
+                descriptorWrites[dstBinding].dstArrayElement = 0;
+                descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                descriptorWrites[dstBinding].descriptorCount = 1;
+                descriptorWrites[dstBinding].pImageInfo = &imageInfo[i];
+                dstBinding++;
+            }
+
+            for (size_t i = 0; i < numStorageVertex; i++)
+            {
+                descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                descriptorWrites[dstBinding].dstSet = descriptorSets[j];
+                descriptorWrites[dstBinding].dstBinding = dstBinding;
+                descriptorWrites[dstBinding].dstArrayElement = 0;
+                descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                descriptorWrites[dstBinding].descriptorCount = 1;
+                descriptorWrites[dstBinding].pImageInfo = &imageInfo[i];
+                dstBinding++;
+            }
+
+            for (size_t i = 0; i < numStorageIndex; i++)
+            {
+                descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                descriptorWrites[dstBinding].dstSet = descriptorSets[j];
+                descriptorWrites[dstBinding].dstBinding = dstBinding;
+                descriptorWrites[dstBinding].dstArrayElement = 0;
+                descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                descriptorWrites[dstBinding].descriptorCount = 1;
+                descriptorWrites[dstBinding].pImageInfo = &imageInfo[i];
+                dstBinding++;
+            }
+
+
+
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
     }
 
 
-    void createGPUSideOnlyBuffer(void* data, VkDeviceSize bufferSize, VkBuffer& buffer, VmaAllocation& bufferMemory, VkBufferUsageFlags useageFlags) {
+    void createGPUSideOnlyBuffer(void* data, uint64_t dataSize, VkDeviceSize bufferSize, VkBuffer& buffer, VmaAllocation& bufferMemory, VkBufferUsageFlags useageFlags) {
         VkBuffer stagingBuffer;
         VmaAllocation stagingBufferMemory;
         createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory, Mapping);
 
         void* transferData;
         vmaMapMemory(allocator, stagingBufferMemory, &transferData);
-        memcpy(transferData, data, (size_t)bufferSize);
+        memcpy(transferData, data, (size_t)dataSize);
         vmaUnmapMemory(allocator, stagingBufferMemory);
 
         createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | useageFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer, bufferMemory, NoMapping);
@@ -1147,6 +1392,93 @@ namespace MZ {
     }
 
 
+    void createComputeDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, uint32_t numUbos, uint32_t numImages, uint32_t numStorageBuffer, uint32_t numStorageImages) {
+        std::vector<VkDescriptorSetLayoutBinding> layoutBindings(numImages + numStorageBuffer + numStorageImages + numUbos);
+        uint32_t binding = 0;
+
+        for (size_t i = 0; i < numUbos; i++)
+        {
+            layoutBindings[binding].binding = binding;
+            layoutBindings[binding].descriptorCount = 1;
+            layoutBindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            layoutBindings[binding].pImmutableSamplers = nullptr;
+            layoutBindings[binding].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            binding++;
+        }
+
+        for (size_t i = 0; i < numImages; i++)
+        {
+            layoutBindings[binding].binding = binding;
+            layoutBindings[binding].descriptorCount = 1;
+            layoutBindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            layoutBindings[binding].pImmutableSamplers = nullptr;
+            layoutBindings[binding].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            binding++;
+        }
+
+        for (size_t i = 0; i < numStorageBuffer; i++)
+        {
+            layoutBindings[binding].binding = binding;
+            layoutBindings[binding].descriptorCount = 1;
+            layoutBindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            layoutBindings[binding].pImmutableSamplers = nullptr;
+            layoutBindings[binding].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            binding++;
+        }
+
+        for (size_t i = 0; i < numStorageImages; i++)
+        {
+            layoutBindings[binding].binding = binding;
+            layoutBindings[binding].descriptorCount = 1;
+            layoutBindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            layoutBindings[binding].pImmutableSamplers = nullptr;
+            layoutBindings[binding].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            binding++;
+        }
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = binding;
+        layoutInfo.pBindings = layoutBindings.data();
+
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute descriptor set layout!");
+        }
+    }
+
+
+    void createComputePipeline(std::string computeShaderFilePath, VkDescriptorSetLayout& descriptorSetLayout, VkPipelineLayout& pipleineLayout, VkPipeline& pipeline) {
+        auto computeShaderCode = readFile(computeShaderFilePath);
+
+        VkShaderModule computeShaderModule = createShaderModule(computeShaderCode);
+
+        VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
+        computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        computeShaderStageInfo.module = computeShaderModule;
+        computeShaderStageInfo.pName = "main";
+
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipleineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute pipeline layout!");
+        }
+
+        VkComputePipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineInfo.layout = pipleineLayout;
+        pipelineInfo.stage = computeShaderStageInfo;
+
+        if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create compute pipeline!");
+        }
+
+        vkDestroyShaderModule(device, computeShaderModule, nullptr);
+    }
+
     VkCommandBuffer beginSingleTimeCommands()
     {
         VkCommandBufferAllocateInfo allocInfo{};
@@ -1201,10 +1533,6 @@ namespace MZ {
     }
 
     void createSyncObjects() {
-        imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -1216,7 +1544,11 @@ namespace MZ {
             if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
                 vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
                 vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create synchronization objects for a frame!");
+                throw std::runtime_error("failed to create graphics synchronization objects for a frame!");
+            }
+            if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &computeFinishedSemaphores[i]) != VK_SUCCESS ||
+                vkCreateFence(device, &fenceInfo, nullptr, &computeInFlightFences[i]) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create compute synchronization objects for a frame!");
             }
         }
     }
@@ -1254,7 +1586,6 @@ namespace MZ {
     }
 
     void createCommandBuffers() {
-        commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1292,6 +1623,18 @@ namespace MZ {
         }
     }
 
+    void createComputeCommandBuffers() {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = computeCommandPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = (uint32_t)computeCommandBuffers.size();
+
+        if (vkAllocateCommandBuffers(device, &allocInfo, computeCommandBuffers.data()) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate compute command buffers!");
+        }
+    }
+
     void createCommandPool() {
         QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
 
@@ -1302,6 +1645,15 @@ namespace MZ {
 
         if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
             throw std::runtime_error("failed to create graphics command pool!");
+        }
+        if (queueFamilyIndices.graphicsFamily != queueFamilyIndices.computeFamily) {
+            poolInfo.queueFamilyIndex = queueFamilyIndices.computeFamily.value();
+            if (vkCreateCommandPool(device, &poolInfo, nullptr, &computeCommandPool) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create graphics command pool!");
+            }
+        }
+        else {
+            computeCommandPool = commandPool;
         }
     }
 
@@ -1466,44 +1818,6 @@ namespace MZ {
         if (vmaCreateImage(allocator, &imageInfo, &allocInfo, &image, &imageMemory, nullptr) != VK_SUCCESS) {
             throw std::runtime_error("failed to create image!");
         }
-
-        //if (vmaBindImageMemory(allocator, imageMemory, image) != VK_SUCCESS) {
-        //    throw std::runtime_error("failed to bind image!");
-        //};
-    }
-    void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = width;
-        imageInfo.extent.height = height;
-        imageInfo.extent.depth = 1;
-        imageInfo.mipLevels = mipLevels;
-        imageInfo.arrayLayers = 1;
-        imageInfo.format = format;
-        imageInfo.tiling = tiling;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.usage = usage;
-        imageInfo.samples = numSamples;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image!");
-        }
-
-        VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(device, image, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-        if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate image memory!");
-        }
-
-        vkBindImageMemory(device, image, imageMemory, 0);
     }
 
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -1717,7 +2031,7 @@ namespace MZ {
         QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-        std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+        std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value(), indices.computeFamily.value()};
 
         float queuePriority = 1.0f;
         for (uint32_t queueFamily : uniqueQueueFamilies) {
@@ -1756,6 +2070,7 @@ namespace MZ {
         }
 
         vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+        vkGetDeviceQueue(device, indices.computeFamily.value(), 0, &computeQueue);
         vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
     }
 
@@ -1913,10 +2228,6 @@ namespace MZ {
             if (presentSupport && (!indices.presentFamily || indices.presentFamily == indices.graphicsFamily)) {
                 indices.presentFamily = i;
             }
-
-            //if (indices.isComplete()) {
-            //    break;
-            //}
 
             i++;
         }

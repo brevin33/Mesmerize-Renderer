@@ -24,14 +24,15 @@ FIND_PACKAGE( Boost 1.40 COMPONENTS program_options REQUIRED )
 
 add_library(MesmerizeRenderer STATIC  "src/VulkanRenderer.cpp" )
 
-add_compile_definitions(VULKANRENDERER)
-
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 target_include_directories(MesmerizeRenderer PRIVATE include/private)
 target_include_directories(MesmerizeRenderer PRIVATE include/dep)
 target_include_directories(MesmerizeRenderer PUBLIC include/public)
 
 target_precompile_headers(MesmerizeRenderer PUBLIC include/private/pch.h)
+
+add_compile_definitions(VULKANRENDERER)
+
 
 target_link_libraries(MesmerizeRenderer PUBLIC glfw)
 target_link_libraries(MesmerizeRenderer PUBLIC glm::glm)
