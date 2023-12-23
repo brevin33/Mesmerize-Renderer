@@ -1,12 +1,11 @@
 # Mesmerize-Renderer
 
-Mesmerize Renderer is a going to be a high level renderer 3d library that can be used to develop 3d applications like a game engine, 3d modeling application, ect.
+Mesmerize Renderer is a mid-low level Renderer API built on top of Vulkan, but I may add support for more backends like DirectX 12 or WEBGPU in the future. This was made as a way for me to streamline the process of setting up rendering for future projects.
 
 ## Required Packages
 - GLM
 - GLFW
 - Vulkan
-- Assimp
 - Vulkan Memory Allocator
 
 ## Install
