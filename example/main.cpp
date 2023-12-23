@@ -37,7 +37,7 @@ void main() {
 	//loading shader
 	std::vector<MZ::VertexValueType> vertValues = Vertex::getVertexValueTypes();
 	MZ::VertexValueType instanceValue = MZ::VTfloat4x4;
-	MZ::ShaderID unlitShader = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", 1, 1, vertValues.data(), vertValues.size(), &instanceValue, 1);
+	MZ::ShaderID unlitShader = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", 1, 1, 1, vertValues.data(), vertValues.size(), &instanceValue, 1);
 
 	//creating camera buffer
 	glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));

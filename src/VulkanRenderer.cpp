@@ -43,7 +43,6 @@ namespace MZ {
 
         cleanupSwapChain();
 
-
         for (size_t i = 0; i < shaderGraphicsPipelines.size(); i++)
         {
             vkDestroyPipeline(device, shaderGraphicsPipelines[i], nullptr);
@@ -148,10 +147,10 @@ namespace MZ {
 
         vkDestroyRenderPass(device, renderPass, nullptr);
 
-
+        if (computeCommandPool != commandPool) {
+            vkDestroyCommandPool(device, computeCommandPool, nullptr);
+        }
         vkDestroyCommandPool(device, commandPool, nullptr);
-        vkDestroyCommandPool(device, computeCommandPool, nullptr);
-
 
         vmaDestroyAllocator(allocator);
         vkDestroyDevice(device, nullptr);
@@ -172,7 +171,19 @@ namespace MZ {
         renderObject.instanceBuffer = instanceBuffer;
         renderObject.numVertexBuffers = 2;
         renderObjects.push_back(renderObject);
-        return (RenderObjectID)(renderObjects.size() - 1);
+
+        RenderObjectID renderObjectID = (RenderObjectID)(renderObjects.size() - 1);
+        for(size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        {
+            VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[i].pMappedData;
+            drawCommands[renderObjectID].indexCount = indexNumIndices[renderObject.indexBuffer];
+            drawCommands[renderObjectID].instanceCount = vertexNumInstances[renderObject.instanceBuffer];
+            drawCommands[renderObjectID].firstIndex = 0;
+            drawCommands[renderObjectID].vertexOffset = 0;
+            drawCommands[renderObjectID].firstInstance = 0;
+        }
+
+        return renderObjectID;
     }
 
     RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer) {
@@ -182,17 +193,29 @@ namespace MZ {
         renderObject.vertexBuffer = vertexBuffer;
         renderObject.numVertexBuffers = 1;
         renderObjects.push_back(renderObject);
-        return (RenderObjectID)(renderObjects.size() - 1);
+
+        RenderObjectID renderObjectID = (RenderObjectID)(renderObjects.size() - 1);
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        {
+            VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[i].pMappedData;
+            drawCommands[renderObjectID].indexCount = indexNumIndices[renderObject.indexBuffer];
+            drawCommands[renderObjectID].instanceCount = 1;
+            drawCommands[renderObjectID].firstIndex = 0;
+            drawCommands[renderObjectID].vertexOffset = 0;
+            drawCommands[renderObjectID].firstInstance = 0;
+        }
+
+        return renderObjectID;
     }
 
-    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex){
+    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer){
         Compute compute;
         compute.x = xDispatch;
         compute.y = yDispatch;
         compute.z = zDispatch;
         compute.shaderID = computes.size();
         
-        createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, uniformBuffers, numUniformBuffers, storageUniforms, numStorageUniforms, storageVertex, numStorageVertex, storageIndex, numStorageIndex);
+        createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, uniformBuffers, numUniformBuffers, storageUniforms, numStorageUniforms, storageVertex, numStorageVertex, storageIndex, numStorageIndex, hasDrawCommandBuffer);
 
         computes.push_back(compute);
         return (ComputeID)(computes.size() - 1);
@@ -205,13 +228,13 @@ namespace MZ {
         materialDescriptorSets.resize(i+1);
 
         materialShaderIDs[i] = shaderID;
-        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers, nullptr, 0, nullptr, 0, nullptr, 0);
+        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers, nullptr, 0, nullptr, 0, nullptr, 0, false);
 
         return i;
     }
 
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes)
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t maxNumberOfMaterial, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes)
     {
         ShaderID i = (ShaderID)shaderGraphicsPipelines.size();
 
@@ -220,14 +243,14 @@ namespace MZ {
         shaderPipelineLayouts.resize(i + 1);
         shaderDescriptorPools.resize(i + 1);
 
-        createDescriptorPool(shaderDescriptorPools[i], numTextures, numBuffers,0,0);
+        createDescriptorPool(shaderDescriptorPools[i], maxNumberOfMaterial, numTextures, numBuffers,0,0, false);
         createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures, numBuffers);
         createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues, numVertexValues, InstanceTypes, numInstanceTypes);
 
         return i;
     }
 
-    ComputeShaderID createComputeShader(std::string computeShaderPath, uint32_t numUniformBuffers, uint32_t numStaticTextures, uint32_t numStorageBuffers, uint32_t numStorageTextues)
+    ComputeShaderID createComputeShader(std::string computeShaderPath, uint32_t maxNumberOfComputes, uint32_t numUniformBuffers, uint32_t numStaticTextures, uint32_t numStorageBuffers, uint32_t numStorageTextues, bool hasDrawCommandBuffer)
     {
         ComputeShaderID i = (ComputeShaderID)computePipeline.size();
 
@@ -236,8 +259,8 @@ namespace MZ {
         computePipeline.resize(i+1);
         computeDescriptorPool.resize(i+1);
 
-        createDescriptorPool(computeDescriptorPool[i], numStaticTextures, numUniformBuffers, numStorageBuffers, numStorageTextues);
-        createComputeDescriptorSetLayout(computeDescriptorSetLayout[i], numUniformBuffers, numStaticTextures, numStorageBuffers, numStorageTextues);
+        createDescriptorPool(computeDescriptorPool[i], maxNumberOfComputes, numStaticTextures, numUniformBuffers, numStorageBuffers, numStorageTextues, hasDrawCommandBuffer);
+        createComputeDescriptorSetLayout(computeDescriptorSetLayout[i], numUniformBuffers, numStaticTextures, numStorageBuffers, numStorageTextues, hasDrawCommandBuffer);
         createComputePipeline(computeShaderPath, computeDescriptorSetLayout[i], computePipelineLayout[i], computePipeline[i]);
         return i;
     }
@@ -582,17 +605,6 @@ namespace MZ {
     //----------------------------------------------------------------------------- PRIVATE ---------------------------------------------------- PRIVATE ----------------------------------------------------------------
 
     void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame) {
-        VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[renderFrame].pMappedData;
-        for (size_t i = 0; i < renderObjects.size() - 1; i++) {
-            RenderObject renderObject = renderObjects[i];
-            drawCommands[i].indexCount = indexNumIndices[renderObject.indexBuffer];
-            drawCommands[i].instanceCount = renderObject.numVertexBuffers == 2 ? vertexNumInstances[renderObject.instanceBuffer] : 1;
-            drawCommands[i].firstIndex = 0;
-            drawCommands[i].vertexOffset = 0;
-            drawCommands[i].firstInstance = 0;
-        }
-
-
         //drawing
         for (size_t i = 0; i < renderObjects.size() - 1; i++)
         {
@@ -619,7 +631,7 @@ namespace MZ {
     void createVmaAllocator() {
 
         VmaAllocatorCreateInfo allocatorCreateInfo = {};
-        allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_0;
+        allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_1;
         allocatorCreateInfo.physicalDevice = physicalDevice;
         allocatorCreateInfo.device = device;
         allocatorCreateInfo.instance = instance;
@@ -756,6 +768,7 @@ namespace MZ {
         }
 
     }
+
 
     void createTextureImage(std::string filepath, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView) {
         int texWidth, texHeight, texChannels;
@@ -983,14 +996,13 @@ namespace MZ {
         }
     }
 
-
     bool hasStencilComponent(VkFormat format) {
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     }
 
-    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures, uint32_t numBuffers, uint32_t numStorageBuffers, uint32_t numStorageIamges)
+    void createDescriptorPool(VkDescriptorPool& descriptorPool, uint32_t poolSize, int numTextures, uint32_t numBuffers, uint32_t numStorageBuffers, uint32_t numStorageIamges, bool hasDrawCommandBuffer)
     {
-        std::vector<VkDescriptorPoolSize> poolSizes(numTextures+ numBuffers);
+        std::vector<VkDescriptorPoolSize> poolSizes(numTextures+ numBuffers + numStorageBuffers * 2 + numStorageIamges * 2 + (int)hasDrawCommandBuffer * 2);
         uint32_t bindings = 0;
         for (size_t i = 0; i < numBuffers; i++)
         {
@@ -1004,33 +1016,40 @@ namespace MZ {
             poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
             bindings++;
         }
-        for (size_t i = 0; i < numStorageBuffers; i++)
+        for (size_t i = 0; i < numStorageBuffers*2; i++)
         {
             poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
             bindings++;
         }
-        for (size_t i = 0; i < numStorageIamges; i++)
+        for (size_t i = 0; i < numStorageIamges*2; i++)
         {
             poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
             poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
             bindings++;
         }
-
+        if (hasDrawCommandBuffer) {
+            for (size_t i = 0; i < 2; i++)
+            {
+                poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+                bindings++;
+            }
+        }
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * poolSize;
 
         if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool!");
         }
     }
 
-    void createDescriptorSets(std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers, 
-        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex)
+    void createDescriptorSets(std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers,
+        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer)
     {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -1045,6 +1064,8 @@ namespace MZ {
 
 
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+            int lastFrame = j - 1;
+            if (lastFrame < 0) lastFrame = MAX_FRAMES_IN_FLIGHT - 1;
             std::vector<VkDescriptorBufferInfo> BufferInfo(numBuffers);
             for (size_t i = 0; i < numBuffers; i++)
             {
@@ -1061,31 +1082,51 @@ namespace MZ {
                 imageInfo[i].sampler = textureSamplers[textureIDs[i]];
             }
 
-            std::vector<VkDescriptorBufferInfo> storageUniformBufferInfo(numStorageUniforms);
-            for (size_t i = 0; i < numStorageUniforms; i++)
+            std::vector<VkDescriptorBufferInfo> storageUniformBufferInfo(numStorageUniforms * 2);
+            for (size_t i = 0; i < storageUniformBufferInfo.size(); i += 2)
             {
-                BufferInfo[i].buffer = uniformBuffers[storageUniforms[i]][j];
-                BufferInfo[i].offset = 0;
-                BufferInfo[i].range = uniformBuffersSize[storageUniforms[i]];
+                storageUniformBufferInfo[i].buffer = uniformBuffers[storageUniforms[i/2]][j];
+                storageUniformBufferInfo[i].offset = 0;
+                storageUniformBufferInfo[i].range = uniformBuffersSize[storageUniforms[i/2]];
+                storageUniformBufferInfo[i+1].buffer = uniformBuffers[storageUniforms[i / 2]][lastFrame];
+                storageUniformBufferInfo[i+1].offset = 0;
+                storageUniformBufferInfo[i+1].range = uniformBuffersSize[storageUniforms[i / 2]];
             }
 
-            std::vector<VkDescriptorBufferInfo> storageVertexBufferInfo(numStorageVertex);
-            for (size_t i = 0; i < numStorageVertex; i++)
+            std::vector<VkDescriptorBufferInfo> storageVertexBufferInfo(numStorageVertex * 2);
+            for (size_t i = 0; i < storageVertexBufferInfo.size(); i += 2)
             {
-                BufferInfo[i].buffer = vertexBuffers[storageVertex[i]][j];
-                BufferInfo[i].offset = 0;
-                BufferInfo[i].range = vertexBuffersSize[storageVertex[i]];
+                storageVertexBufferInfo[i].buffer = vertexBuffers[storageVertex[i/2]][j];
+                storageVertexBufferInfo[i].offset = 0;
+                storageVertexBufferInfo[i].range = vertexBuffersSize[storageVertex[i/2]];
+                storageVertexBufferInfo[i+1].buffer = vertexBuffers[storageVertex[i / 2]][lastFrame];
+                storageVertexBufferInfo[i+1].offset = 0;
+                storageVertexBufferInfo[i+1].range = vertexBuffersSize[storageVertex[i / 2]];
             }
 
-            std::vector<VkDescriptorBufferInfo> storageIndexBufferInfo(numStorageVertex);
-            for (size_t i = 0; i < numStorageIndex; i++)
+            std::vector<VkDescriptorBufferInfo> storageIndexBufferInfo(numStorageVertex * 2);
+            for (size_t i = 0; i < storageIndexBufferInfo.size(); i += 2)
             {
-                BufferInfo[i].buffer = indexBuffers[storageIndex[i]][j];
-                BufferInfo[i].offset = 0;
-                BufferInfo[i].range = indexBuffersSize[storageIndex[i]];
+                storageIndexBufferInfo[i].buffer = indexBuffers[storageIndex[i/2]][j];
+                storageIndexBufferInfo[i].offset = 0;
+                storageIndexBufferInfo[i].range = indexBuffersSize[storageIndex[i/2]];
+                storageIndexBufferInfo[i+1].buffer = indexBuffers[storageIndex[i / 2]][lastFrame];
+                storageIndexBufferInfo[i+1].offset = 0;
+                storageIndexBufferInfo[i+1].range = indexBuffersSize[storageIndex[i / 2]];
+            }
+            
+            std::array<VkDescriptorBufferInfo,2> drawBufferInfo;
+
+            if (hasDrawCommandBuffer) {
+                drawBufferInfo[0].buffer = drawCommandBuffer[j];
+                drawBufferInfo[0].offset = 0;
+                drawBufferInfo[0].range = MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand);
+                drawBufferInfo[1].buffer = drawCommandBuffer[lastFrame];
+                drawBufferInfo[1].offset = 0;
+                drawBufferInfo[1].range = MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand);
             }
 
-            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs + numStorageUniforms + numStorageIndex + numStorageVertex);
+            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs + numStorageUniforms * 2 + numStorageIndex * 2 + numStorageVertex * 2 + (int)hasDrawCommandBuffer * 2);
 
             int dstBinding = 0;
 
@@ -1113,7 +1154,7 @@ namespace MZ {
                 dstBinding++;
             }
 
-            for (size_t i = 0; i < numStorageUniforms; i++)
+            for (size_t i = 0; i < storageUniformBufferInfo.size(); i++)
             {
                 descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 descriptorWrites[dstBinding].dstSet = descriptorSets[j];
@@ -1121,11 +1162,11 @@ namespace MZ {
                 descriptorWrites[dstBinding].dstArrayElement = 0;
                 descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 descriptorWrites[dstBinding].descriptorCount = 1;
-                descriptorWrites[dstBinding].pImageInfo = &imageInfo[i];
+                descriptorWrites[dstBinding].pBufferInfo = &storageUniformBufferInfo[i];
                 dstBinding++;
             }
 
-            for (size_t i = 0; i < numStorageVertex; i++)
+            for (size_t i = 0; i < storageVertexBufferInfo.size(); i++)
             {
                 descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 descriptorWrites[dstBinding].dstSet = descriptorSets[j];
@@ -1133,11 +1174,11 @@ namespace MZ {
                 descriptorWrites[dstBinding].dstArrayElement = 0;
                 descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 descriptorWrites[dstBinding].descriptorCount = 1;
-                descriptorWrites[dstBinding].pImageInfo = &imageInfo[i];
+                descriptorWrites[dstBinding].pBufferInfo = &storageVertexBufferInfo[i];
                 dstBinding++;
             }
 
-            for (size_t i = 0; i < numStorageIndex; i++)
+            for (size_t i = 0; i < storageIndexBufferInfo.size(); i++)
             {
                 descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 descriptorWrites[dstBinding].dstSet = descriptorSets[j];
@@ -1145,11 +1186,23 @@ namespace MZ {
                 descriptorWrites[dstBinding].dstArrayElement = 0;
                 descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 descriptorWrites[dstBinding].descriptorCount = 1;
-                descriptorWrites[dstBinding].pImageInfo = &imageInfo[i];
+                descriptorWrites[dstBinding].pBufferInfo = &storageIndexBufferInfo[i];
                 dstBinding++;
             }
 
-
+            if (hasDrawCommandBuffer) {
+                for (size_t i = 0; i < drawBufferInfo.size(); i++)
+                {
+                    descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    descriptorWrites[dstBinding].dstSet = descriptorSets[j];
+                    descriptorWrites[dstBinding].dstBinding = dstBinding;
+                    descriptorWrites[dstBinding].dstArrayElement = 0;
+                    descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                    descriptorWrites[dstBinding].descriptorCount = 1;
+                    descriptorWrites[dstBinding].pBufferInfo = &drawBufferInfo[i];
+                    dstBinding++;
+                }
+            }
 
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
@@ -1392,8 +1445,8 @@ namespace MZ {
     }
 
 
-    void createComputeDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, uint32_t numUbos, uint32_t numImages, uint32_t numStorageBuffer, uint32_t numStorageImages) {
-        std::vector<VkDescriptorSetLayoutBinding> layoutBindings(numImages + numStorageBuffer + numStorageImages + numUbos);
+    void createComputeDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, uint32_t numUbos, uint32_t numImages, uint32_t numStorageBuffer, uint32_t numStorageImages, bool hasDrawCommandBuffer) {
+        std::vector<VkDescriptorSetLayoutBinding> layoutBindings(numImages + numStorageBuffer * 2 + numStorageImages * 2 + numUbos + (int)hasDrawCommandBuffer * 2);
         uint32_t binding = 0;
 
         for (size_t i = 0; i < numUbos; i++)
@@ -1434,6 +1487,19 @@ namespace MZ {
             layoutBindings[binding].pImmutableSamplers = nullptr;
             layoutBindings[binding].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
             binding++;
+        }
+
+        if (hasDrawCommandBuffer)
+        {
+            for (size_t i = 0; i < 2; i++)
+            {
+                layoutBindings[binding].binding = binding;
+                layoutBindings[binding].descriptorCount = 1;
+                layoutBindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                layoutBindings[binding].pImmutableSamplers = nullptr;
+                layoutBindings[binding].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+                binding++;
+            }
         }
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
@@ -1635,6 +1701,7 @@ namespace MZ {
         }
     }
 
+
     void createCommandPool() {
         QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
 
@@ -1818,19 +1885,6 @@ namespace MZ {
         if (vmaCreateImage(allocator, &imageInfo, &allocInfo, &image, &imageMemory, nullptr) != VK_SUCCESS) {
             throw std::runtime_error("failed to create image!");
         }
-    }
-
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-        VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-
-        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-                return i;
-            }
-        }
-
-        throw std::runtime_error("failed to find suitable memory type!");
     }
 
     void createRenderPass() {
@@ -2265,7 +2319,7 @@ namespace MZ {
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "No Engine";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.apiVersion = VK_API_VERSION_1_0;
+        appInfo.apiVersion = VK_API_VERSION_1_1;
 
         VkInstanceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;

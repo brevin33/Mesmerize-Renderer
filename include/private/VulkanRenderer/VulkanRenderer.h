@@ -97,7 +97,7 @@ namespace MZ {
     VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
     const std::vector<const char*> deviceExtensions = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     };
 
     std::vector<UniformBufferID> mutUniformBuffers;
@@ -214,10 +214,10 @@ namespace MZ {
 
     void createDrawCommandBuffer();
 
-    void createDescriptorPool(VkDescriptorPool& descriptorPool, int numTextures, uint32_t numBuffers, uint32_t numStorageBuffers, uint32_t numStorageIamges);
+    void createDescriptorPool(VkDescriptorPool& descriptorPool, uint32_t poolSize, int numTextures, uint32_t numBuffers, uint32_t numStorageBuffers, uint32_t numStorageIamges, bool hasDrawCommandBuffer);
 
     void createDescriptorSets(std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers,
-        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex);
+        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer);
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
 
@@ -231,7 +231,7 @@ namespace MZ {
 
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VmaAllocation& bufferMemory, BufferMappingType mapping, VmaAllocationInfo* allocationInfo = nullptr);
 
-    void createComputeDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, uint32_t numUbos, uint32_t numImages, uint32_t numStorageBuffer, uint32_t numStorageImages);
+    void createComputeDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, uint32_t numUbos, uint32_t numImages, uint32_t numStorageBuffer, uint32_t numStorageImages, bool hasDrawCommandBuffer);
 
     void createComputePipeline(std::string computeShaderFilePath, VkDescriptorSetLayout& descriptorSetLayout, VkPipelineLayout& pipleineLayout, VkPipeline& pipeline);
 
@@ -271,15 +271,13 @@ namespace MZ {
 
     void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VmaAllocation& imageMemory);
 
-    void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-
     void createRenderPass();
 
     void createComputeCommandBuffers();
 
     void createSwapChain();
+
+    bool isPowerOf2(uint32_t num);
 
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 

@@ -17,7 +17,10 @@ namespace MZ{
     BOOST_STRONG_TYPEDEF(uint16_t, ComputeShaderID);
     BOOST_STRONG_TYPEDEF(uint16_t, ComputeID);
 
-
+    struct BoundingSphere {
+        glm::vec3 positon;
+        float radius;
+    };
 
     enum VertexValueType {
         VTfloat4,
@@ -45,17 +48,17 @@ namespace MZ{
 
     int getRenderHeight();
 
+    RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer);
     RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer, VertexBufferID instanceBuffer);
 
-    RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer);
-
-    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex);
+    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues,
+        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer = false);
 
     MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers);
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t maxNumberOfMaterial, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
 
-    ComputeShaderID createComputeShader(std::string computeShaderPath, uint32_t numUniformBuffers, uint32_t numStaticTextures, uint32_t numStorageBuffers, uint32_t numStorageTextues);
+    ComputeShaderID createComputeShader(std::string computeShaderPath, uint32_t maxNumberOfComputes, uint32_t numUniformBuffers, uint32_t numStaticTextures, uint32_t numStorageBuffers, uint32_t numStorageTextues, bool hasDrawCommandBuffer = false);
 
     TextureID createTexture(std::string textureFilepath);
 
