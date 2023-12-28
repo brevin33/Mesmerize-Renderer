@@ -13,8 +13,6 @@
 #include <Mesmerize/Renderer.h>
 
 
-#define MAX_COMMANDS 200
-
 namespace MZ {
 
     struct QueueFamilyIndices {

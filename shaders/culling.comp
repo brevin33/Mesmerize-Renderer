@@ -1,0 +1,85 @@
+#version 450
+
+struct VkDrawIndexedIndirectCommand  {
+    uint    indexCount;
+    uint    instanceCount;
+    uint    firstIndex;
+    int     vertexOffset;
+    uint    firstInstance;
+};
+
+layout(binding = 0) uniform BoundingSphere{ 
+	vec4 sphereData[1024];
+} spheres;
+
+layout(binding = 1) uniform cameraInfo{ 
+    mat4 viewproj;
+} camera;
+
+
+layout(binding = 2) readonly buffer drawCommandSSBOIn {
+   VkDrawIndexedIndirectCommand  drawCommandsIn[1024];
+};
+
+layout(binding = 3) buffer drawCommandSSBOOut {
+   VkDrawIndexedIndirectCommand  drawCommandsOut[1024];
+};
+
+vec3 left;
+float leftDist;
+vec3 right;
+float rightDist;
+vec3 top;
+float topDist;
+vec3 bottom;
+float bottomDist;
+vec3 near;
+float nearDist;
+vec3 far;
+float farDist;
+
+bool inPlane(vec3 planeNormal, float planeDistance, vec3 pos, float radius){
+    return dot(planeNormal, pos) - planeDistance > radius;
+}
+
+bool IsVisible(uint objectIndex)
+{
+    bool visible = true;
+    vec4 sphereData = spheres.sphereData[objectIndex];
+
+    vec3 pos = sphereData.xyz;
+    float radius = sphereData.a;
+
+    visible = inPlane(left, leftDist, pos, radius)  || inPlane(right, rightDist, pos, radius) || inPlane(top, topDist, pos, radius) 
+                        || inPlane(bottom, bottomDist, pos, radius) || inPlane(far, farDist, pos, radius) || inPlane(near, nearDist, pos, radius);
+
+    visible = !visible;
+    visible = visible || radius < 0;
+
+	return visible;
+}
+
+
+
+layout (local_size_x = 128, local_size_y = 1, local_size_z = 1) in; 
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    left = vec3(camera.viewproj[3][0] + camera.viewproj[0][0], camera.viewproj[3][1] + camera.viewproj[0][1],camera.viewproj[3][2] + camera.viewproj[0][2]);
+    leftDist = camera.viewproj[3][3] + camera.viewproj[0][3];
+    right = vec3(camera.viewproj[3][0] - camera.viewproj[0][0], camera.viewproj[3][1] - camera.viewproj[0][1],camera.viewproj[3][2] - camera.viewproj[0][2]);
+    rightDist = camera.viewproj[3][3] - camera.viewproj[0][3];
+    bottom = vec3(camera.viewproj[3][0] + camera.viewproj[1][0], camera.viewproj[3][1] + camera.viewproj[1][1],camera.viewproj[3][2] + camera.viewproj[1][2]);
+    bottomDist = camera.viewproj[3][3] + camera.viewproj[1][3];
+    top = vec3(camera.viewproj[3][0] - camera.viewproj[1][0], camera.viewproj[3][1] - camera.viewproj[1][1],camera.viewproj[3][2] - camera.viewproj[1][2]);
+    topDist = camera.viewproj[3][3] - camera.viewproj[1][3];
+    near = vec3(camera.viewproj[3][0] + camera.viewproj[2][0], camera.viewproj[3][1] + camera.viewproj[2][1],camera.viewproj[3][2] + camera.viewproj[2][2]);
+    nearDist = camera.viewproj[3][3] + camera.viewproj[2][3];
+    far = vec3(camera.viewproj[3][0] - camera.viewproj[2][0], camera.viewproj[3][1] - camera.viewproj[2][1],camera.viewproj[3][2] - camera.viewproj[2][2]);
+    farDist = camera.viewproj[3][3] - camera.viewproj[2][3];
+    if(!IsVisible(i)){
+        drawCommandsOut[i].instanceCount = 0;
+    }else{
+        drawCommandsOut[i].instanceCount = 1;
+    }
+
+}

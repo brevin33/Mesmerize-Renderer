@@ -8,7 +8,7 @@ namespace MZ {
 
 
     //----------------------------------------------------------------------------- PUBLIC ---------------------------------------------------- PUBLIC ----------------------------------------------------------------
-    void setup(GLFWwindow* w) {
+    void setupNoDefaults(GLFWwindow* w) {
         window = w;
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
         createInstance();
@@ -207,6 +207,7 @@ namespace MZ {
 
         return renderObjectID;
     }
+
 
     ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer){
         Compute compute;
@@ -1031,7 +1032,7 @@ namespace MZ {
         if (hasDrawCommandBuffer) {
             for (size_t i = 0; i < 2; i++)
             {
-                poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
                 bindings++;
             }
@@ -1085,10 +1086,10 @@ namespace MZ {
             std::vector<VkDescriptorBufferInfo> storageUniformBufferInfo(numStorageUniforms * 2);
             for (size_t i = 0; i < storageUniformBufferInfo.size(); i += 2)
             {
-                storageUniformBufferInfo[i].buffer = uniformBuffers[storageUniforms[i/2]][j];
+                storageUniformBufferInfo[i].buffer = uniformBuffers[storageUniforms[i/2]][lastFrame];
                 storageUniformBufferInfo[i].offset = 0;
                 storageUniformBufferInfo[i].range = uniformBuffersSize[storageUniforms[i/2]];
-                storageUniformBufferInfo[i+1].buffer = uniformBuffers[storageUniforms[i / 2]][lastFrame];
+                storageUniformBufferInfo[i+1].buffer = uniformBuffers[storageUniforms[i / 2]][j];
                 storageUniformBufferInfo[i+1].offset = 0;
                 storageUniformBufferInfo[i+1].range = uniformBuffersSize[storageUniforms[i / 2]];
             }
@@ -1096,10 +1097,10 @@ namespace MZ {
             std::vector<VkDescriptorBufferInfo> storageVertexBufferInfo(numStorageVertex * 2);
             for (size_t i = 0; i < storageVertexBufferInfo.size(); i += 2)
             {
-                storageVertexBufferInfo[i].buffer = vertexBuffers[storageVertex[i/2]][j];
+                storageVertexBufferInfo[i].buffer = vertexBuffers[storageVertex[i/2]][lastFrame];
                 storageVertexBufferInfo[i].offset = 0;
                 storageVertexBufferInfo[i].range = vertexBuffersSize[storageVertex[i/2]];
-                storageVertexBufferInfo[i+1].buffer = vertexBuffers[storageVertex[i / 2]][lastFrame];
+                storageVertexBufferInfo[i+1].buffer = vertexBuffers[storageVertex[i / 2]][j];
                 storageVertexBufferInfo[i+1].offset = 0;
                 storageVertexBufferInfo[i+1].range = vertexBuffersSize[storageVertex[i / 2]];
             }
@@ -1107,10 +1108,10 @@ namespace MZ {
             std::vector<VkDescriptorBufferInfo> storageIndexBufferInfo(numStorageVertex * 2);
             for (size_t i = 0; i < storageIndexBufferInfo.size(); i += 2)
             {
-                storageIndexBufferInfo[i].buffer = indexBuffers[storageIndex[i/2]][j];
+                storageIndexBufferInfo[i].buffer = indexBuffers[storageIndex[i/2]][lastFrame];
                 storageIndexBufferInfo[i].offset = 0;
                 storageIndexBufferInfo[i].range = indexBuffersSize[storageIndex[i/2]];
-                storageIndexBufferInfo[i+1].buffer = indexBuffers[storageIndex[i / 2]][lastFrame];
+                storageIndexBufferInfo[i+1].buffer = indexBuffers[storageIndex[i / 2]][j];
                 storageIndexBufferInfo[i+1].offset = 0;
                 storageIndexBufferInfo[i+1].range = indexBuffersSize[storageIndex[i / 2]];
             }
@@ -1469,7 +1470,7 @@ namespace MZ {
             binding++;
         }
 
-        for (size_t i = 0; i < numStorageBuffer; i++)
+        for (size_t i = 0; i < numStorageBuffer * 2; i++)
         {
             layoutBindings[binding].binding = binding;
             layoutBindings[binding].descriptorCount = 1;
@@ -1479,7 +1480,7 @@ namespace MZ {
             binding++;
         }
 
-        for (size_t i = 0; i < numStorageImages; i++)
+        for (size_t i = 0; i < numStorageImages * 2; i++)
         {
             layoutBindings[binding].binding = binding;
             layoutBindings[binding].descriptorCount = 1;

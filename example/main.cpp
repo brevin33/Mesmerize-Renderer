@@ -1,6 +1,7 @@
 ﻿#include <GLFW/glfw3.h>
 #include <Mesmerize/Renderer.h>
 #include "Model.h"
+#include <Mesmerize/Defaults.h>
 
 constexpr int WIDTH = 1920;
 constexpr int HEIGHT = 1080;
@@ -39,13 +40,6 @@ void main() {
 	MZ::VertexValueType instanceValue = MZ::VTfloat4x4;
 	MZ::ShaderID unlitShader = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", 1, 1, 1, vertValues.data(), vertValues.size(), &instanceValue, 1);
 
-	//creating camera buffer
-	glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	glm::mat4 proj = glm::perspective(glm::radians(45.0f), MZ::getRenderWidth() / (float)MZ::getRenderHeight(), 0.1f, 10.0f);
-	proj[1][1] *= -1;
-	glm::mat4 viewPerspectiveMatrix = proj * view;
-	MZ::UniformBufferID cameraBuffer = MZ::createCPUMutUniformBuffer(&viewPerspectiveMatrix, sizeof(glm::mat4));
-
 	// load model from file
 	Model backpack("../../../models/backpack/backpack.obj");
 
@@ -77,7 +71,7 @@ void main() {
 			backpackMaterials.push_back(assimpMaterialToMZMaterial[assimpMat]);
 			continue;
 		}
-		MZ::MaterialID matID = MZ::createMaterial(unlitShader, backpackTextures[i].data(), backpackTextures[i].size(), &cameraBuffer, 1);
+		MZ::MaterialID matID = MZ::createMaterial(unlitShader, backpackTextures[i].data(), backpackTextures[i].size(), &MZ::mainCameraBuffer, 1);
 		backpackMaterials.push_back(matID);
 		assimpMaterialToMZMaterial[assimpMat] = matID;
 	}
@@ -98,10 +92,12 @@ void main() {
 	//telling the renderer to render backpack
 	for (size_t i = 0; i < backpack.modelVertices.size(); i++)
 	{
-		MZ::addRenderObject(backpackMaterials[i], backpackVertexBuffers[i], backpackIndexBuffers[i], instanceBuffer);
+		MZ::BoundingSphere boundingSphere(glm::vec3(0.0f,0.0f,0.0f), 2.0f);
+		MZ::addRenderObject(backpackMaterials[i], backpackVertexBuffers[i], backpackIndexBuffers[i], instanceBuffer, boundingSphere);
 	}
 
 	backpack.unload();
+
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
