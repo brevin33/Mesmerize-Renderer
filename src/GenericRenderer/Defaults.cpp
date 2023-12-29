@@ -8,8 +8,8 @@ namespace MZ {
 	ComputeShaderID cullingShader;
 	ComputeID mainCullingCompute;
 
-	void setup(GLFWwindow* window) {
-		setupNoDefaults(window);
+	void setup(GLFWwindow* window, int numGBuffers) {
+		setupNoDefaults(window, numGBuffers);
 		setupDefaults();
 	}
 

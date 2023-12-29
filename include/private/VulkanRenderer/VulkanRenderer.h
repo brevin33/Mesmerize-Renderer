@@ -62,13 +62,26 @@ namespace MZ {
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
     std::vector<VkImageView> swapChainImageViews;
-    std::vector<VkFramebuffer> swapChainFramebuffers;
+    std::array<std::vector<VkFramebuffer>,2> swapChainFramebuffers;
 
     VkRenderPass renderPass;
+
+    VkRenderPass defferedRenderPass;
+    VkPipelineLayout defferedPipelineLayout;
+    VkPipeline defferedGraphicsPipeline = nullptr;
+    VkDescriptorSetLayout defferedDescriptorSetLayout;
+    VkDescriptorPool defferedDescriptorPool;
+    std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT> defferedDescriptorSets;
+
+    struct DefferedParams {
+        std::string fragShader; TextureID* textureIDs; uint32_t numTextureIDs; UniformBufferID* bufferIDs; uint32_t numBuffers;
+    };
+    DefferedParams defferedParams;
 
     VkCommandPool commandPool;
     VkCommandPool computeCommandPool;
 
+    VkSampler imageSampler;
 
     std::array<VkCommandBuffer,MAX_FRAMES_IN_FLIGHT> commandBuffers;
     std::array<VkCommandBuffer, MAX_FRAMES_IN_FLIGHT> computeCommandBuffers;
@@ -89,9 +102,14 @@ namespace MZ {
     std::array<VkFence, MAX_FRAMES_IN_FLIGHT> computeInFlightFences;
     uint32_t currentFrame = 0;
 
-    VkImage colorImage;
-    VmaAllocation colorImageMemory;
-    VkImageView colorImageView;
+    std::vector<VkImage> colorImage;
+    std::vector<VmaAllocation> colorImageMemory;
+    std::vector<VkImageView> colorImageView;
+
+    std::vector<VkImage> colorImageMsaaOut;
+    std::vector<VmaAllocation> colorImageMemoryMsaaOut;
+    std::vector<VkImageView> colorImageViewMsaaOut;
+
     VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
     const std::vector<const char*> deviceExtensions = {
@@ -176,7 +194,6 @@ namespace MZ {
     std::vector<VkImage> textureImages;
     std::vector<VmaAllocation> textureImageMemorys;
     std::vector<VkImageView> textureImageViews;
-    std::vector<VkSampler> textureSamplers;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -212,12 +229,17 @@ namespace MZ {
 
     void createDrawCommandBuffer();
 
-    void createDescriptorPool(VkDescriptorPool& descriptorPool, uint32_t poolSize, int numTextures, uint32_t numBuffers, uint32_t numStorageBuffers, uint32_t numStorageIamges, bool hasDrawCommandBuffer);
+    void createDefferedDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures, uint32_t numBuffers);
+
+    void createDescriptorPool(VkDescriptorPool& descriptorPool, uint32_t poolSize, int numTextures, uint32_t numBuffers, uint32_t numStorageBuffers, uint32_t numStorageIamges, bool hasDrawCommandBuffer, bool isDefferedShader);
 
     void createDescriptorSets(std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers,
-        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer);
+        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer,
+        bool isDefferedShader);
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
+
+    void createDefferdGraphicsPipline(std::string fragShaderPath);
 
     void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures, uint32_t numBuffers);
 
@@ -239,6 +261,8 @@ namespace MZ {
 
     void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
+    void createColorMsaaOutResources(int numColorResorces);
+
     std::array<uint32_t, 3> getOffsetVertexValue(VertexValueType vertexValue);
 
     VkVertexInputBindingDescription getBindingDescription(VertexValueType* VertexValues, uint32_t numVertexValues, VkVertexInputRate inputRate, uint32_t binding);
@@ -259,7 +283,7 @@ namespace MZ {
 
     void createCommandPool();
 
-    void createColorResources();
+    void createColorResources(int numColorResorces);
 
     void createDepthResources();
 
@@ -269,13 +293,13 @@ namespace MZ {
 
     void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VmaAllocation& imageMemory);
 
-    void createRenderPass();
+    void createRenderPass(int numColorAttachments);
+
+    void createDefferedRenderPass();
 
     void createComputeCommandBuffers();
 
     void createSwapChain();
-
-    bool isPowerOf2(uint32_t num);
 
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 

@@ -47,13 +47,13 @@ namespace MZ{
     /// must call before doing anything can optionally use setupNoDefaults
     /// </summary>
     /// <param name="window"> surface to render to </param>
-    void setup(GLFWwindow* window);
+    void setup(GLFWwindow* window, int numGBuffers);
 
     /// <summary>
     /// setup but this has no default buffers for stuff like culling
     /// </summary>
     /// <param name="window"> surface to render to </param>
-    void setupNoDefaults(GLFWwindow* window);
+    void setupNoDefaults(GLFWwindow* window, int numGColorBuffers);
 
     /// <summary>
     /// call when you no longer want to render or at end of program
@@ -74,6 +74,11 @@ namespace MZ{
     /// gets the resultion of the rendered output image height
     /// </summary>
     int getRenderHeight();
+
+    /// <summary>
+    /// must call before calling drawFrame. sets the deffered shader
+    /// </summary>
+    void setDefferedShader(std::string fragShader, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers);
 
     /// <summary>
     /// Call once then an object will be rendered every drawFrame
@@ -131,11 +136,6 @@ namespace MZ{
     UniformBufferID createUniformBuffer(void* data, uint32_t bufferSize);
     UniformBufferID createCPUMutUniformBuffer(void* data, uint32_t bufferSize);
     UniformBufferID createGPUMutUniformBuffer(void* data, uint32_t bufferSize);
-
-
-    /// <summary>
-    /// a storage buffer can be made to pass information in to compute shaders. you must specify the types of mutability by calling the right constructor
-    /// </summary>
 
     /// <summary>
     /// update a part or all of a buffer. must be CPUMutable buffer or will crash

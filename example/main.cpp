@@ -33,7 +33,9 @@ void main() {
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
 	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, GraphicsAPI, nullptr, nullptr);
-	MZ::setup(window);
+	MZ::setup(window,1);
+
+	MZ::setDefferedShader("../../../shaders/defferedFrag.spv", nullptr, 0, nullptr, 0);
 
 	//loading shader
 	std::vector<MZ::VertexValueType> vertValues = Vertex::getVertexValueTypes();

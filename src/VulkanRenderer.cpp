@@ -8,7 +8,7 @@ namespace MZ {
 
 
     //----------------------------------------------------------------------------- PUBLIC ---------------------------------------------------- PUBLIC ----------------------------------------------------------------
-    void setupNoDefaults(GLFWwindow* w) {
+    void setupNoDefaults(GLFWwindow* w, int numGBuffers) {
         window = w;
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
         createInstance();
@@ -19,15 +19,18 @@ namespace MZ {
         createVmaAllocator();
         createSwapChain();
         createImageViews();
-        createRenderPass();
+        createRenderPass(numGBuffers);
+        createDefferedRenderPass();
         createCommandPool();
-        createColorResources();
+        createColorResources(numGBuffers);
         createDepthResources();
+        createColorMsaaOutResources(numGBuffers);
         createFramebuffers();
         createCommandBuffers();
         createSyncObjects();
         createDrawCommandBuffer();
         createComputeCommandBuffers();
+        createTextureSampler(imageSampler);
     }
 
     int getRenderWidth() {
@@ -62,9 +65,10 @@ namespace MZ {
         for (size_t i = 0; i < textureImages.size(); i++)
         {
             vmaDestroyImage(allocator, textureImages[i], textureImageMemorys[i]);
-            vkDestroySampler(device, textureSamplers[i], nullptr);
             vkDestroyImageView(device, textureImageViews[i], nullptr);
         }
+
+        vkDestroySampler(device, imageSampler, nullptr);
 
         for (size_t l = 0; l < mutUniformBuffers.size(); l++)
         {
@@ -145,6 +149,13 @@ namespace MZ {
             vkDestroyFence(device, computeInFlightFences[i], nullptr);
         }
 
+        vkDestroyPipeline(device, defferedGraphicsPipeline, nullptr);
+        vkDestroyPipelineLayout(device, defferedPipelineLayout, nullptr);
+        vkDestroyDescriptorSetLayout(device, defferedDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorPool(device, defferedDescriptorPool, nullptr);
+
+        vkDestroyRenderPass(device, defferedRenderPass, nullptr);
+
         vkDestroyRenderPass(device, renderPass, nullptr);
 
         if (computeCommandPool != commandPool) {
@@ -216,11 +227,29 @@ namespace MZ {
         compute.z = zDispatch;
         compute.shaderID = computes.size();
         
-        createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, uniformBuffers, numUniformBuffers, storageUniforms, numStorageUniforms, storageVertex, numStorageVertex, storageIndex, numStorageIndex, hasDrawCommandBuffer);
+        createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, uniformBuffers, numUniformBuffers, storageUniforms, numStorageUniforms, storageVertex, numStorageVertex, storageIndex, numStorageIndex, hasDrawCommandBuffer, false);
 
         computes.push_back(compute);
         return (ComputeID)(computes.size() - 1);
 
+    }
+
+    void setDefferedShader(std::string fragShader, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers) {
+        defferedParams.fragShader = fragShader;
+        defferedParams.textureIDs = textureIDs;
+        defferedParams.numTextureIDs = numTextureIDs;
+        defferedParams.bufferIDs = bufferIDs;
+        defferedParams.numBuffers = numBuffers;
+        if (defferedGraphicsPipeline != nullptr) {
+            vkDestroyPipeline(device, defferedGraphicsPipeline, nullptr);
+            vkDestroyPipelineLayout(device, defferedPipelineLayout, nullptr);
+            vkDestroyDescriptorSetLayout(device, defferedDescriptorSetLayout, nullptr);
+            vkDestroyDescriptorPool(device, defferedDescriptorPool, nullptr);
+        }
+        createDescriptorPool(defferedDescriptorPool, 1, numTextureIDs, numBuffers, 0, 0, false, true);
+        createDefferedDescriptorSetLayout(defferedDescriptorSetLayout, numTextureIDs, numBuffers);
+        createDefferdGraphicsPipline(fragShader);
+        createDescriptorSets(defferedDescriptorSets, defferedDescriptorPool, defferedDescriptorSetLayout, textureIDs, numTextureIDs, bufferIDs, numBuffers, nullptr, 0, nullptr, 0, nullptr, 0, false, true);
     }
 
     MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers){
@@ -229,7 +258,7 @@ namespace MZ {
         materialDescriptorSets.resize(i+1);
 
         materialShaderIDs[i] = shaderID;
-        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers, nullptr, 0, nullptr, 0, nullptr, 0, false);
+        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers, nullptr, 0, nullptr, 0, nullptr, 0, false, false);
 
         return i;
     }
@@ -244,7 +273,7 @@ namespace MZ {
         shaderPipelineLayouts.resize(i + 1);
         shaderDescriptorPools.resize(i + 1);
 
-        createDescriptorPool(shaderDescriptorPools[i], maxNumberOfMaterial, numTextures, numBuffers,0,0, false);
+        createDescriptorPool(shaderDescriptorPools[i], maxNumberOfMaterial, numTextures, numBuffers,0,0, false, false);
         createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures, numBuffers);
         createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues, numVertexValues, InstanceTypes, numInstanceTypes);
 
@@ -260,7 +289,7 @@ namespace MZ {
         computePipeline.resize(i+1);
         computeDescriptorPool.resize(i+1);
 
-        createDescriptorPool(computeDescriptorPool[i], maxNumberOfComputes, numStaticTextures, numUniformBuffers, numStorageBuffers, numStorageTextues, hasDrawCommandBuffer);
+        createDescriptorPool(computeDescriptorPool[i], maxNumberOfComputes, numStaticTextures, numUniformBuffers, numStorageBuffers, numStorageTextues, hasDrawCommandBuffer,false);
         createComputeDescriptorSetLayout(computeDescriptorSetLayout[i], numUniformBuffers, numStaticTextures, numStorageBuffers, numStorageTextues, hasDrawCommandBuffer);
         createComputePipeline(computeShaderPath, computeDescriptorSetLayout[i], computePipelineLayout[i], computePipeline[i]);
         return i;
@@ -471,10 +500,8 @@ namespace MZ {
         textureImages.resize(i + 1);
         textureImageMemorys.resize(i + 1);
         textureImageViews.resize(i + 1);
-        textureSamplers.resize(i + 1);
 
         createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
-        createTextureSampler(textureSamplers[i]);
         return i;
     }
 
@@ -677,7 +704,7 @@ namespace MZ {
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = renderPass;
-        renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+        renderPassInfo.framebuffer = swapChainFramebuffers[0][imageIndex];
         renderPassInfo.renderArea.offset = { 0, 0 };
         renderPassInfo.renderArea.extent = swapChainExtent;
 
@@ -710,6 +737,18 @@ namespace MZ {
 
         vkCmdEndRenderPass(commandBuffer);
 
+        renderPassInfo.renderPass = defferedRenderPass;
+        renderPassInfo.framebuffer = swapChainFramebuffers[1][imageIndex];
+        renderPassInfo.clearValueCount = 1;
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, defferedGraphicsPipeline);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, defferedPipelineLayout, 0, 1, &defferedDescriptorSets[renderFrame], 0, NULL);
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+        vkCmdEndRenderPass(commandBuffer);
+
+
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record command buffer!");
         }
@@ -730,9 +769,11 @@ namespace MZ {
 
         createSwapChain();
         createImageViews();
-        createColorResources();
+        createColorResources(colorImage.size());
         createDepthResources();
+        createColorMsaaOutResources(colorImage.size());
         createFramebuffers();
+        setDefferedShader(defferedParams.fragShader, defferedParams.textureIDs, defferedParams.numTextureIDs, defferedParams.bufferIDs, defferedParams.numBuffers);
     }
 
     void createTextureSampler(VkSampler& textureSampler) {
@@ -1001,9 +1042,9 @@ namespace MZ {
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     }
 
-    void createDescriptorPool(VkDescriptorPool& descriptorPool, uint32_t poolSize, int numTextures, uint32_t numBuffers, uint32_t numStorageBuffers, uint32_t numStorageIamges, bool hasDrawCommandBuffer)
+    void createDescriptorPool(VkDescriptorPool& descriptorPool, uint32_t poolSize, int numTextures, uint32_t numBuffers, uint32_t numStorageBuffers, uint32_t numStorageIamges, bool hasDrawCommandBuffer, bool isDefferedShader)
     {
-        std::vector<VkDescriptorPoolSize> poolSizes(numTextures+ numBuffers + numStorageBuffers * 2 + numStorageIamges * 2 + (int)hasDrawCommandBuffer * 2);
+        std::vector<VkDescriptorPoolSize> poolSizes(numTextures+ numBuffers + numStorageBuffers * 2 + numStorageIamges * 2 + (int)hasDrawCommandBuffer * 2 + (int)isDefferedShader * 2);
         uint32_t bindings = 0;
         for (size_t i = 0; i < numBuffers; i++)
         {
@@ -1037,6 +1078,14 @@ namespace MZ {
                 bindings++;
             }
         }
+        if (isDefferedShader) {
+            for (size_t i = 0; i < 2; i++)
+            {
+                poolSizes[bindings].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                poolSizes[bindings].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+                bindings++;
+            }
+        }
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1050,7 +1099,8 @@ namespace MZ {
     }
 
     void createDescriptorSets(std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers,
-        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer)
+        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer,
+        bool isDefferedShader)
     {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -1080,7 +1130,7 @@ namespace MZ {
             {
                 imageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 imageInfo[i].imageView = textureImageViews[textureIDs[i]];
-                imageInfo[i].sampler = textureSamplers[textureIDs[i]];
+                imageInfo[i].sampler = imageSampler;
             }
 
             std::vector<VkDescriptorBufferInfo> storageUniformBufferInfo(numStorageUniforms * 2);
@@ -1127,7 +1177,20 @@ namespace MZ {
                 drawBufferInfo[1].range = MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand);
             }
 
-            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs + numStorageUniforms * 2 + numStorageIndex * 2 + numStorageVertex * 2 + (int)hasDrawCommandBuffer * 2);
+            std::vector<VkDescriptorImageInfo> defferedImageInfo(colorImageViewMsaaOut.size() + 1);
+            if (isDefferedShader) {
+                for (size_t i = 0; i < colorImageViewMsaaOut.size(); i++)
+                {
+                    defferedImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    defferedImageInfo[i].imageView = colorImageViewMsaaOut[i];
+                    defferedImageInfo[i].sampler = imageSampler;
+                }
+                defferedImageInfo[colorImageViewMsaaOut.size()].imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+                defferedImageInfo[colorImageViewMsaaOut.size()].imageView = depthImageView;
+                defferedImageInfo[colorImageViewMsaaOut.size()].sampler = imageSampler;
+            }
+
+            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs + numStorageUniforms * 2 + numStorageIndex * 2 + numStorageVertex * 2 + (int)hasDrawCommandBuffer * 2 + (int)isDefferedShader * 2);
 
             int dstBinding = 0;
 
@@ -1205,6 +1268,20 @@ namespace MZ {
                 }
             }
 
+            if (isDefferedShader) {
+                for (size_t i = 0; i < defferedImageInfo.size(); i++)
+                {
+                    descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    descriptorWrites[dstBinding].dstSet = descriptorSets[j];
+                    descriptorWrites[dstBinding].dstBinding = dstBinding;
+                    descriptorWrites[dstBinding].dstArrayElement = 0;
+                    descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                    descriptorWrites[dstBinding].descriptorCount = 1;
+                    descriptorWrites[dstBinding].pImageInfo = &defferedImageInfo[i];
+                    dstBinding++;
+                }
+            }
+
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
     }
@@ -1225,6 +1302,122 @@ namespace MZ {
         copyBuffer(stagingBuffer, buffer, bufferSize);
 
         vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferMemory);
+    }
+
+    void createDefferdGraphicsPipline(std::string fragShaderPath)
+    {
+        auto vertShaderCode = readFile("../../../shaders/defferedVert.spv");
+        auto fragShaderCode = readFile(fragShaderPath);
+
+        VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+        VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+        vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertShaderStageInfo.module = vertShaderModule;
+        vertShaderStageInfo.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragShaderStageInfo.module = fragShaderModule;
+        fragShaderStageInfo.pName = "main";
+
+        VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.depthClampEnable = VK_FALSE;
+        rasterizer.rasterizerDiscardEnable = VK_FALSE;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.lineWidth = 1.0f;
+        rasterizer.cullMode = VK_CULL_MODE_NONE;
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterizer.depthBiasEnable = VK_FALSE;
+
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.sampleShadingEnable = VK_FALSE;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_FALSE;
+        depthStencil.depthWriteEnable = VK_FALSE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        depthStencil.depthBoundsTestEnable = VK_FALSE;
+        depthStencil.stencilTestEnable = VK_FALSE;
+
+        VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        colorBlendAttachment.blendEnable = VK_FALSE;
+
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.logicOpEnable = VK_FALSE;
+        colorBlending.logicOp = VK_LOGIC_OP_COPY;
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlendAttachment;
+        colorBlending.blendConstants[0] = 0.0f;
+        colorBlending.blendConstants[1] = 0.0f;
+        colorBlending.blendConstants[2] = 0.0f;
+        colorBlending.blendConstants[3] = 0.0f;
+
+        std::vector<VkDynamicState> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &defferedDescriptorSetLayout;
+
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &defferedPipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create pipeline layout!");
+        }
+
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = shaderStages;
+        pipelineInfo.pVertexInputState = &vertexInputInfo;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pDepthStencilState = &depthStencil;
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDynamicState = &dynamicState;
+        pipelineInfo.layout = defferedPipelineLayout;
+        pipelineInfo.renderPass = defferedRenderPass;
+        pipelineInfo.subpass = 0;
+        pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &defferedGraphicsPipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create graphics pipeline!");
+        }
+
+        vkDestroyShaderModule(device, fragShaderModule, nullptr);
+        vkDestroyShaderModule(device, vertShaderModule, nullptr);
     }
 
 
@@ -1358,6 +1551,52 @@ namespace MZ {
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
     }
 
+    void createDefferedDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures, uint32_t numBuffers)
+    {
+        uint32_t binding = 0;
+
+        std::vector<VkDescriptorSetLayoutBinding> bindings(numTextures + numBuffers + 2);
+
+        for (size_t i = 0; i < numBuffers; i++)
+        {
+            bindings[binding].binding = binding;
+            bindings[binding].descriptorCount = 1;
+            bindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            bindings[binding].pImmutableSamplers = nullptr;
+            bindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            binding++;
+        }
+
+        for (size_t i = 0; i < numTextures; i++)
+        {
+            bindings[binding].binding = binding;
+            bindings[binding].descriptorCount = 1;
+            bindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            bindings[binding].pImmutableSamplers = nullptr;
+            bindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            binding++;
+        }
+
+        for (size_t i = 0; i < 2; i++)
+        {
+            bindings[binding].binding = binding;
+            bindings[binding].descriptorCount = 1;
+            bindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            bindings[binding].pImmutableSamplers = nullptr;
+            bindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            binding++;
+        }
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
+
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create descriptor set layout!");
+        }
+    }
+
     void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures, uint32_t numBuffers)
     {
         uint32_t binding = 0;
@@ -1374,7 +1613,6 @@ namespace MZ {
             binding++;
         }
 
-        std::vector<VkDescriptorSetLayoutBinding> samplerLayoutBinding(numTextures);
         for (size_t i = 0; i < numTextures; i++)
         {
             bindings[binding].binding = binding;
@@ -1585,10 +1823,19 @@ namespace MZ {
         vmaDestroyImage(allocator, depthImage, depthImageMemory);
         vkDestroyImageView(device, depthImageView, nullptr);
 
-        vmaDestroyImage(allocator, colorImage, colorImageMemory);
-        vkDestroyImageView(device, colorImageView, nullptr);
+        for (size_t i = 0; i < colorImage.size(); i++)
+        {
+            vmaDestroyImage(allocator, colorImage[i], colorImageMemory[i]);
+            vkDestroyImageView(device, colorImageView[i], nullptr);
 
-        for (auto framebuffer : swapChainFramebuffers) {
+            vmaDestroyImage(allocator, colorImageMsaaOut[i], colorImageMemoryMsaaOut[i]);
+            vkDestroyImageView(device, colorImageViewMsaaOut[i], nullptr);
+        }
+
+        for (auto framebuffer : swapChainFramebuffers[0]) {
+            vkDestroyFramebuffer(device, framebuffer, nullptr);
+        }
+        for (auto framebuffer : swapChainFramebuffers[1]) {
             vkDestroyFramebuffer(device, framebuffer, nullptr);
         }
 
@@ -1666,14 +1913,23 @@ namespace MZ {
     }
 
     void createFramebuffers() {
-        swapChainFramebuffers.resize(swapChainImageViews.size());
+        swapChainFramebuffers[0].resize(swapChainImageViews.size());
 
         for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-            std::array<VkImageView, 3> attachments = {
-                colorImageView,
-                depthImageView,
-                swapChainImageViews[i]
-            };
+            std::vector<VkImageView> attachments(colorImageView.size() * 2 + 1);
+            int attachIndex = 0;
+            for (size_t i = 0; i < colorImageView.size(); i++)
+            {
+                attachments[attachIndex] = colorImageView[i];
+                attachIndex++;
+            }
+            attachments[attachIndex] = depthImageView;
+            attachIndex++;
+            for (size_t i = 0; i < colorImageViewMsaaOut.size(); i++)
+            {
+                attachments[attachIndex] = colorImageViewMsaaOut[i];
+                attachIndex++;
+            }
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -1684,7 +1940,28 @@ namespace MZ {
             framebufferInfo.height = swapChainExtent.height;
             framebufferInfo.layers = 1;
 
-            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[0][i]) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create framebuffer!");
+            }
+        }
+
+        swapChainFramebuffers[1].resize(swapChainImageViews.size());
+
+        for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+            std::array<VkImageView, 1> attachments = {
+                swapChainImageViews[i]
+            };
+
+            VkFramebufferCreateInfo framebufferInfo{};
+            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            framebufferInfo.renderPass = defferedRenderPass;
+            framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+            framebufferInfo.pAttachments = attachments.data();
+            framebufferInfo.width = swapChainExtent.width;
+            framebufferInfo.height = swapChainExtent.height;
+            framebufferInfo.layers = 1;
+
+            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[1][i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create framebuffer!");
             }
         }
@@ -1725,16 +2002,34 @@ namespace MZ {
         }
     }
 
-    void createColorResources() {
-        VkFormat colorFormat = swapChainImageFormat;
-        createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorImage, colorImageMemory);
-        colorImageView = createImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+    void createColorResources(int numColorResorces) {
+        colorImage.resize(numColorResorces);
+        colorImageView.resize(numColorResorces);
+        colorImageMemory.resize(numColorResorces);
+        for (size_t i = 0; i < numColorResorces; i++)
+        {
+            VkFormat colorFormat = swapChainImageFormat;
+            createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorImage[i], colorImageMemory[i]);
+            colorImageView[i] = createImageView(colorImage[i], colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+        }
+    }
+
+    void createColorMsaaOutResources(int numColorResorces) {
+        colorImageMsaaOut.resize(numColorResorces);
+        colorImageViewMsaaOut.resize(numColorResorces);
+        colorImageMemoryMsaaOut.resize(numColorResorces);
+        for (size_t i = 0; i < numColorResorces; i++)
+        {
+            VkFormat colorFormat = swapChainImageFormat;
+            createImage(swapChainExtent.width, swapChainExtent.height, 1, VK_SAMPLE_COUNT_1_BIT, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorImageMsaaOut[i], colorImageMemoryMsaaOut[i]);
+            colorImageViewMsaaOut[i] = createImageView(colorImageMsaaOut[i], colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+        }
     }
 
     void createDepthResources() {
         VkFormat depthFormat = findDepthFormat();
 
-        createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+        createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
         depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
     }
 
@@ -1888,7 +2183,39 @@ namespace MZ {
         }
     }
 
-    void createRenderPass() {
+    void createDefferedRenderPass() {
+        VkAttachmentDescription colorAttachmentResolve{};
+        colorAttachmentResolve.format = swapChainImageFormat;
+        colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+        VkAttachmentReference colorAttachmentResolveRef{};
+        colorAttachmentResolveRef.attachment = 0;
+        colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &colorAttachmentResolveRef;
+
+        VkRenderPassCreateInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassInfo.attachmentCount = 1;
+        renderPassInfo.pAttachments = &colorAttachmentResolve;
+        renderPassInfo.subpassCount = 1;
+        renderPassInfo.pSubpasses = &subpass;
+
+        if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &defferedRenderPass) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create deffered render pass!");
+        }
+    }
+
+    void createRenderPass(int numColorAttachments) {
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = swapChainImageFormat;
         colorAttachment.samples = msaaSamples;
@@ -1917,26 +2244,36 @@ namespace MZ {
         colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        VkAttachmentReference colorAttachmentRef{};
-        colorAttachmentRef.attachment = 0;
-        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        int attachment = 0;
+        std::vector<VkAttachmentReference> colorAttachmentRef(numColorAttachments);
+        for (size_t i = 0; i < numColorAttachments; i++)
+        {
+            colorAttachmentRef[i].attachment = attachment;
+            colorAttachmentRef[i].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            attachment++;
+        }
 
         VkAttachmentReference depthAttachmentRef{};
-        depthAttachmentRef.attachment = 1;
+        depthAttachmentRef.attachment = attachment;
         depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        attachment++;
 
-        VkAttachmentReference colorAttachmentResolveRef{};
-        colorAttachmentResolveRef.attachment = 2;
-        colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        std::vector<VkAttachmentReference> colorAttachmentResolveRef(numColorAttachments);
+        for (size_t i = 0; i < numColorAttachments; i++)
+        {
+            colorAttachmentResolveRef[i].attachment = attachment;
+            colorAttachmentResolveRef[i].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            attachment++;
+        }
 
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpass.colorAttachmentCount = 1;
-        subpass.pColorAttachments = &colorAttachmentRef;
+        subpass.colorAttachmentCount = numColorAttachments;
+        subpass.pColorAttachments = colorAttachmentRef.data();
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
-        subpass.pResolveAttachments = &colorAttachmentResolveRef;
+        subpass.pResolveAttachments = colorAttachmentResolveRef.data();
 
         VkSubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
