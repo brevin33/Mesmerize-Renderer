@@ -10,7 +10,9 @@ namespace MZ {
 
 	void createMainCameraBuffer();
 
-	void addToCullingBuffer(BoundingSphere& boundingSphere, RenderObjectID renderObjectID);
+	void addToCullingBuffer(BoundingSphere& boundingSphere, RenderObjectID renderObjectID, uint32_t instanceCount);
 
-	ComputeID createCullingCompute(UniformBufferID cameraBuffer);
+	void updateCameraFullcrumBuffer(glm::mat4 viewproj, UniformBufferID buffer);
+
+	ComputeID createCullingCompute(UniformBufferID cameraBuffer, UniformBufferID cameraFullcrumBuffer);
 }

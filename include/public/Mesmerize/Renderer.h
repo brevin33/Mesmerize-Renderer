@@ -144,4 +144,14 @@ namespace MZ{
     void updateCPUMutVertexBuffer(VertexBufferID buffer, void* data, uint32_t dataSize, uint32_t offset = 0);
     void updateCPUMutIndexBuffer(IndexBufferID buffer, void* data, uint32_t dataSize, uint32_t offset = 0);
 
+    /// <summary>
+    /// get a buffers data can olny be done for cpu buffers
+    /// </summary>
+    void* getCPUMutUniformBufferData(UniformBufferID buffer);
+    void* getCPUMutVertexBufferData(VertexBufferID buffer);
+    void* getCPUMutIndexBufferData(IndexBufferID buffer);
+
+
+    uint32_t getInstanceCount(VertexBufferID vertexBuffer);
+
 }

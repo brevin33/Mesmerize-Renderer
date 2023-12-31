@@ -3,6 +3,7 @@
 #include <GenericRenderer/DefaultPrivate.h>
 
 namespace MZ {
+	void renderFrame();
 
 
 }

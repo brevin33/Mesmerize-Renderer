@@ -520,7 +520,23 @@ namespace MZ {
         indexUpToDate[buffer] = 0;
     }
 
-    void drawFrame() {
+    uint32_t getInstanceCount(VertexBufferID vertexBuffer) {
+        return vertexNumInstances[vertexBuffer];
+    }
+
+    void* getCPUMutUniformBufferData(UniformBufferID buffer) {
+        return uniformBufferData[buffer];
+    }
+    void* getCPUMutVertexBufferData(VertexBufferID buffer) {
+        return vertexBufferData[buffer];
+    }
+    void* getCPUMutIndexBufferData(IndexBufferID buffer) {
+        return indexBufferData[buffer];
+    }
+
+    //----------------------------------------------------------------------------- PRIVATE ---------------------------------------------------- PRIVATE ----------------------------------------------------------------
+
+    void renderFrame() {
 
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
         uint32_t imageIndex;
@@ -627,10 +643,7 @@ namespace MZ {
         }
 
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-
     }
-
-    //----------------------------------------------------------------------------- PRIVATE ---------------------------------------------------- PRIVATE ----------------------------------------------------------------
 
     void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame) {
         //drawing

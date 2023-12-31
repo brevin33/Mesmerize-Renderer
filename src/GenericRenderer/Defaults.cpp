@@ -1,9 +1,14 @@
 #include <GenericRenderer/defaultPrivate.h>
+#include <GenericRenderer/DefaultRenderer.h>
 #include <Mesmerize/defaults.h>
+#include <Mesmerize/Renderer.h>
+
+
 
 namespace MZ {
 
 	UniformBufferID mainCameraBuffer;
+	UniformBufferID mainCameraFullcrumBuffer;
 	UniformBufferID cullingBuffer;
 	ComputeShaderID cullingShader;
 	ComputeID mainCullingCompute;
@@ -13,11 +18,16 @@ namespace MZ {
 		setupDefaults();
 	}
 
+	void drawFrame() {
+		updateCameraFullcrumBuffer(*(glm::mat4*)getCPUMutUniformBufferData(mainCameraBuffer), mainCameraFullcrumBuffer);
+		renderFrame();
+	}
+
 	void setupDefaults() {
 		createMainCameraBuffer();
 		createCullingBuffer();
-		cullingShader = createComputeShader("../../../shaders/culling.spv", 1, 2, 0, 0, 0, true);
-		mainCullingCompute = createCullingCompute(mainCameraBuffer);
+		cullingShader = createComputeShader("../../../shaders/culling.spv", 1, 3, 0, 0, 0, true);
+		mainCullingCompute = createCullingCompute(mainCameraBuffer, mainCameraFullcrumBuffer);
 
 	}
 
@@ -25,23 +35,45 @@ namespace MZ {
 		glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 		glm::mat4 proj = glm::perspective(glm::radians(45.0f), MZ::getRenderWidth() / (float)MZ::getRenderHeight(), 0.1f, 10.0f);
 		proj[1][1] *= -1;
-		view = proj * view;
-		mainCameraBuffer = createCPUMutUniformBuffer(&view, sizeof(glm::mat4));
+		glm::mat4 viewproj = proj * view;
+		mainCameraBuffer = createCPUMutUniformBuffer(&viewproj, sizeof(glm::mat4));
+
+		cameraFullcrums fullcrums = {};
+		mainCameraFullcrumBuffer = createCPUMutUniformBuffer(&fullcrums, sizeof(cameraFullcrums));
+	}
+
+	void updateCameraFullcrumBuffer(glm::mat4 viewproj, UniformBufferID buffer) {
+		cameraFullcrums fullcrums;
+		fullcrums.left = glm::vec4(viewproj[3][0] + viewproj[0][0], viewproj[3][1] + viewproj[0][1], viewproj[3][2] + viewproj[0][2], viewproj[3][3] + viewproj[0][3]);
+		fullcrums.right = glm::vec4(viewproj[3][0] - viewproj[0][0], viewproj[3][1] - viewproj[0][1], viewproj[3][2] - viewproj[0][2], viewproj[3][3] - viewproj[0][3]);
+		fullcrums.bottom = glm::vec4(viewproj[3][0] + viewproj[1][0], viewproj[3][1] + viewproj[1][1], viewproj[3][2] + viewproj[1][2], viewproj[3][3] + viewproj[1][3]);
+		fullcrums.top = glm::vec4(viewproj[3][0] - viewproj[1][0], viewproj[3][1] - viewproj[1][1], viewproj[3][2] - viewproj[1][2], viewproj[3][3] - viewproj[1][3]);
+		fullcrums.near = glm::vec4(viewproj[3][0] + viewproj[2][0], viewproj[3][1] + viewproj[2][1], viewproj[3][2] + viewproj[2][2], viewproj[3][3] + viewproj[2][3]);
+		fullcrums.far = glm::vec4(viewproj[3][0] - viewproj[2][0], viewproj[3][1] - viewproj[2][1], viewproj[3][2] - viewproj[2][2], viewproj[3][3] - viewproj[2][3]);
+		updateCPUMutUniformBuffer(buffer, &fullcrums, sizeof(cameraFullcrums));
 	}
 	
 	void createCullingBuffer() {
 		glm::vec4 defaultSphere(0,0,0,-1);
-		std::vector<glm::vec4> defaultSpheres(MAX_COMMANDS, defaultSphere);
-		cullingBuffer = createCPUMutUniformBuffer(defaultSpheres.data(), sizeof(glm::vec4) * MAX_COMMANDS);
+		std::vector<glm::vec4> defaultSpheres(MAX_COMMANDS);
+		std::fill(defaultSpheres.begin(), defaultSpheres.end(), defaultSphere);
+		std::vector<uint32_t> defaultInstancCount(MAX_COMMANDS);
+		std::fill(defaultInstancCount.begin(), defaultInstancCount.end(), 0);
+		void* bufferDefault = malloc((sizeof(glm::vec4) + sizeof(uint32_t)) * MAX_COMMANDS);
+		memcpy(bufferDefault, defaultSpheres.data(), defaultSpheres.size() * sizeof(glm::vec4));
+		memcpy((void*)((intptr_t)bufferDefault + defaultSpheres.size() * sizeof(glm::vec4)), defaultInstancCount.data(), defaultInstancCount.size() * sizeof(uint32_t));
+		cullingBuffer = createCPUMutUniformBuffer(bufferDefault, (sizeof(glm::vec4) + sizeof(uint32_t)) * MAX_COMMANDS);
+		free(bufferDefault);
 	}
 
-	ComputeID createCullingCompute(UniformBufferID cameraBuffer) {
-		std::array<UniformBufferID, 2> cullingUniformBuffers = { cullingBuffer, cameraBuffer };
-		return addCompute(cullingShader, MAX_COMMANDS/128, 1, 1, cullingUniformBuffers.data(), 2, nullptr, 0, nullptr, 0, nullptr, 0, nullptr, 0, true);
+	ComputeID createCullingCompute(UniformBufferID cameraBuffer, UniformBufferID cameraFullcrumBuffer) {
+		std::array<UniformBufferID, 3> cullingUniformBuffers = { cullingBuffer, cameraBuffer, cameraFullcrumBuffer };
+		return addCompute(cullingShader, MAX_COMMANDS/32, 1, 1, cullingUniformBuffers.data(), 3, nullptr, 0, nullptr, 0, nullptr, 0, nullptr, 0, true);
 	}
 
-	void addToCullingBuffer(BoundingSphere& boundingSphere, RenderObjectID renderObjectID) {
+	void addToCullingBuffer(BoundingSphere& boundingSphere, RenderObjectID renderObjectID, uint32_t instanceCount) {
 		updateCPUMutUniformBuffer(cullingBuffer, &boundingSphere, sizeof(glm::vec4), renderObjectID * sizeof(glm::vec4));
+		updateCPUMutUniformBuffer(cullingBuffer, &instanceCount, sizeof(uint32_t), MAX_COMMANDS * sizeof(glm::vec4) + renderObjectID * sizeof(uint32_t));
 	}
 
 }
