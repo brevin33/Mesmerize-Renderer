@@ -2,13 +2,15 @@
 #ifdef VULKANRENDERER
 
 #include <Mesmerize/Renderer.h>
-
+#include <GenericRenderer/DefaultRenderer.h>
+#include <GenericRenderer/DefaultPrivate.h>
 
 namespace MZ {
 
 
     //----------------------------------------------------------------------------- PUBLIC ---------------------------------------------------- PUBLIC ----------------------------------------------------------------
-    void setupNoDefaults(GLFWwindow* w, int numGBuffers) {
+    void setupNoDefaults(GLFWwindow* w, int numGColorBuffers, std::string pathToRendererDir){
+        rendererDir = pathToRendererDir;
         window = w;
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
         createInstance();
@@ -19,12 +21,12 @@ namespace MZ {
         createVmaAllocator();
         createSwapChain();
         createImageViews();
-        createRenderPass(numGBuffers);
+        createRenderPass(numGColorBuffers);
         createDefferedRenderPass();
         createCommandPool();
-        createColorResources(numGBuffers);
+        createColorResources(numGColorBuffers);
         createDepthResources();
-        createColorMsaaOutResources(numGBuffers);
+        createColorMsaaOutResources(numGColorBuffers);
         createFramebuffers();
         createCommandBuffers();
         createSyncObjects();
@@ -46,97 +48,108 @@ namespace MZ {
 
         cleanupSwapChain();
 
-        for (size_t i = 0; i < shaderGraphicsPipelines.size(); i++)
+        for (ShaderID i = (ShaderID)0; i < shaderGraphicsPipelines.size(); i++)
         {
-            vkDestroyPipeline(device, shaderGraphicsPipelines[i], nullptr);
-            vkDestroyPipelineLayout(device, shaderPipelineLayouts[i], nullptr);
-            vkDestroyDescriptorSetLayout(device, shaderDescriptorSetLayouts[i], nullptr);
-            vkDestroyDescriptorPool(device, shaderDescriptorPools[i], nullptr);
+            if (std::find(unfilledShaderIDs.begin(), unfilledShaderIDs.end(), i) == unfilledShaderIDs.end()) {
+                deleteResource(i);
+            }
         }
 
-        for (size_t i = 0; i < computeDescriptorPool.size(); i++)
+        for (ComputeShaderID i = (ComputeShaderID)0; i < computeDescriptorPool.size(); i++)
         {
-            vkDestroyPipeline(device, computePipeline[i], nullptr);
-            vkDestroyPipelineLayout(device, computePipelineLayout[i], nullptr);
-            vkDestroyDescriptorSetLayout(device, computeDescriptorSetLayout[i], nullptr);
-            vkDestroyDescriptorPool(device, computeDescriptorPool[i], nullptr);
+            if (std::find(unfilledComputeShaderIDs.begin(), unfilledComputeShaderIDs.end(), i) == unfilledComputeShaderIDs.end()) {
+                deleteResource(i);
+            }
         }
 
-        for (size_t i = 0; i < textureImages.size(); i++)
+        for (TextureID i = (TextureID)0; i < textureImages.size(); i++)
         {
-            vmaDestroyImage(allocator, textureImages[i], textureImageMemorys[i]);
-            vkDestroyImageView(device, textureImageViews[i], nullptr);
+            if (std::find(unfilledTextureIDs.begin(), unfilledTextureIDs.end(), i) == unfilledTextureIDs.end()) {
+                deleteResource(i);
+            }
         }
 
         vkDestroySampler(device, imageSampler, nullptr);
 
         for (size_t l = 0; l < mutUniformBuffers.size(); l++)
         {
-            size_t i = mutUniformBuffers[l];
-            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-                vmaDestroyBuffer(allocator, uniformBuffers[i][j], uniformBuffersMemory[i][j]);
+            UniformBufferID i = mutUniformBuffers[l];
+            if (std::find(unfilledUniformBufferIDs.begin(), unfilledUniformBufferIDs.end(), i) == unfilledUniformBufferIDs.end()) {
+                deleteResourceCPU(i);
+                l--;
             }
-            free(uniformBufferData[i]);
         }
 
         for (size_t l = 0; l < mutGPUUniformBuffers.size(); l++)
         {
-            size_t i = mutGPUUniformBuffers[l];
-            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-                vmaDestroyBuffer(allocator, uniformBuffers[i][j], uniformBuffersMemory[i][j]);
+            UniformBufferID i = mutGPUUniformBuffers[l];
+            if (std::find(unfilledUniformBufferIDs.begin(), unfilledUniformBufferIDs.end(), i) == unfilledUniformBufferIDs.end()) {
+                deleteResourceGPU(i);
+                l--;
             }
         }
 
         for (size_t l = 0; l < constUniformBuffers.size(); l++)
         {
-            size_t i = constUniformBuffers[l];
-            vmaDestroyBuffer(allocator, uniformBuffers[i][0], uniformBuffersMemory[i][0]);
+            UniformBufferID i = constUniformBuffers[l];
+            if (std::find(unfilledUniformBufferIDs.begin(), unfilledUniformBufferIDs.end(), i) == unfilledUniformBufferIDs.end()) {
+                deleteResourceConst(i);
+                l--;
+            }
         }
 
         for (size_t l = 0; l < mutVertexBuffers.size(); l++)
         {
-            size_t i = mutVertexBuffers[l];
-            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-                vmaDestroyBuffer(allocator, vertexBuffers[i][j], vertexBufferMemorys[i][j]);
+            VertexBufferID i = mutVertexBuffers[l];
+            if (std::find(unfilledVertexBufferIDs.begin(), unfilledVertexBufferIDs.end(), i) == unfilledVertexBufferIDs.end()) {
+                deleteResourceCPU(i);
+                l--;
             }
-            free(vertexBufferData[i]);
         }
 
         for (size_t l = 0; l < mutGPUVertexBuffers.size(); l++)
         {
-            size_t i = mutGPUVertexBuffers[l];
-            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-                vmaDestroyBuffer(allocator, vertexBuffers[i][j], vertexBufferMemorys[i][j]);
+            VertexBufferID i = mutGPUVertexBuffers[l];
+            if (std::find(unfilledVertexBufferIDs.begin(), unfilledVertexBufferIDs.end(), i) == unfilledVertexBufferIDs.end()) {
+                deleteResourceGPU(i);
+                l--;
             }
         }
 
         for (size_t l = 0; l < constVertexBuffers.size(); l++)
         {
-            size_t i = constVertexBuffers[l];
-            vmaDestroyBuffer(allocator, vertexBuffers[i][0], vertexBufferMemorys[i][0]);
+            VertexBufferID i = constVertexBuffers[l];
+            if (std::find(unfilledVertexBufferIDs.begin(), unfilledVertexBufferIDs.end(), i) == unfilledVertexBufferIDs.end()) {
+                deleteResourceConst(i);
+                l--;
+            }
         }
 
         for (size_t l = 0; l < mutIndexBuffers.size(); l++)
         {
-            size_t i = mutIndexBuffers[l];
-            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-                vmaDestroyBuffer(allocator, indexBuffers[i][j], indexBufferMemorys[i][j]);
+            IndexBufferID i = mutIndexBuffers[l];
+            if (std::find(unfilledIndexBufferIDs.begin(), unfilledIndexBufferIDs.end(), i) == unfilledIndexBufferIDs.end()) {
+                deleteResourceCPU(i);
+                l--;
             }
-            free(indexBufferData[i]);
         }
 
         for (size_t l = 0; l < mutGPUIndexBuffers.size(); l++)
         {
-            size_t i = mutGPUIndexBuffers[l];
-            for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-                vmaDestroyBuffer(allocator, indexBuffers[i][j], indexBufferMemorys[i][j]);
+            IndexBufferID i = mutGPUIndexBuffers[l];
+            if (std::find(unfilledIndexBufferIDs.begin(), unfilledIndexBufferIDs.end(), i) == unfilledIndexBufferIDs.end()) {
+                deleteResourceGPU(i);
+                l--;
             }
         }
 
         for (size_t l = 0; l < constIndexBuffers.size(); l++)
         {
-            size_t i = constIndexBuffers[l];
-            vmaDestroyBuffer(allocator, indexBuffers[i][0], indexBufferMemorys[i][0]);
+            IndexBufferID i = constIndexBuffers[l];
+            if (std::find(unfilledIndexBufferIDs.begin(), unfilledIndexBufferIDs.end(), i) == unfilledIndexBufferIDs.end()) {
+                deleteResourceConst(i);
+                l--;
+            }
         }
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -174,63 +187,160 @@ namespace MZ {
         vkDestroyInstance(instance, nullptr);
     }
 
+    void deleteResourceCPU(UniformBufferID i) {
+        unfilledUniformBufferIDs.push_back(i);
+        mutUniformBuffers.erase(std::remove(mutUniformBuffers.begin(), mutUniformBuffers.end(), i),mutUniformBuffers.end());
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+            vmaDestroyBuffer(allocator, uniformBuffers[i][j], uniformBuffersMemory[i][j]);
+        }
+        free(uniformBufferData[i]);
+    }
+    void deleteResourceConst(UniformBufferID i) {
+        unfilledUniformBufferIDs.push_back(i);
+        constUniformBuffers.erase(std::remove(constUniformBuffers.begin(), constUniformBuffers.end(), i), constUniformBuffers.end());
+        vmaDestroyBuffer(allocator, uniformBuffers[i][0], uniformBuffersMemory[i][0]);
+    }
+    void deleteResourceGPU(UniformBufferID i) {
+        unfilledUniformBufferIDs.push_back(i);
+        mutGPUUniformBuffers.erase(std::remove(mutGPUUniformBuffers.begin(), mutGPUUniformBuffers.end(), i), mutGPUUniformBuffers.end());
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+            vmaDestroyBuffer(allocator, uniformBuffers[i][j], uniformBuffersMemory[i][j]);
+        }
+    }
+    void deleteResourceGPU(VertexBufferID i) {
+        unfilledVertexBufferIDs.push_back(i);
+        mutGPUVertexBuffers.erase(std::remove(mutGPUVertexBuffers.begin(), mutGPUVertexBuffers.end(), i), mutGPUVertexBuffers.end());
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+            vmaDestroyBuffer(allocator, vertexBuffers[i][j], vertexBufferMemorys[i][j]);
+        }
+    }
+    void deleteResourceCPU(VertexBufferID i) {
+        unfilledVertexBufferIDs.push_back(i);
+        mutVertexBuffers.erase(std::remove(mutVertexBuffers.begin(), mutVertexBuffers.end(), i), mutVertexBuffers.end());
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+            vmaDestroyBuffer(allocator, vertexBuffers[i][j], vertexBufferMemorys[i][j]);
+        }
+        free(vertexBufferData[i]);
+    }
+    void deleteResourceConst(VertexBufferID i) {
+        unfilledVertexBufferIDs.push_back(i);
+        constVertexBuffers.erase(std::remove(constVertexBuffers.begin(), constVertexBuffers.end(), i), constVertexBuffers.end());
+        vmaDestroyBuffer(allocator, vertexBuffers[i][0], vertexBufferMemorys[i][0]);
+    }
+    void deleteResourceConst(IndexBufferID i) {
+        unfilledIndexBufferIDs.push_back(i);
+        constIndexBuffers.erase(std::remove(constIndexBuffers.begin(), constIndexBuffers.end(), i), constIndexBuffers.end());
+        vmaDestroyBuffer(allocator, indexBuffers[i][0], indexBufferMemorys[i][0]);
+    }
+    void deleteResourceCPU(IndexBufferID i) {
+        unfilledIndexBufferIDs.push_back(i);
+        mutIndexBuffers.erase(std::remove(mutIndexBuffers.begin(), mutIndexBuffers.end(), i), mutIndexBuffers.end());
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+            vmaDestroyBuffer(allocator, indexBuffers[i][j], indexBufferMemorys[i][j]);
+        }
+        free(indexBufferData[i]);
+    }
+    void deleteResourceGPU(IndexBufferID i) {
+        unfilledIndexBufferIDs.push_back(i);
+        mutGPUIndexBuffers.erase(std::remove(mutGPUIndexBuffers.begin(), mutGPUIndexBuffers.end(), i), mutGPUIndexBuffers.end());
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+            vmaDestroyBuffer(allocator, indexBuffers[i][j], indexBufferMemorys[i][j]);
+        }
+    }
+    void deleteResource(RenderObjectID i) {
+        unfilledRenderObjectIDs.push_back(i);
+        renderObjects[i].shouldDraw = false;
+    }
+    void deleteResource(ComputeID i) {
+        unfilledComputeIDs.push_back(i);
+        computes[i].shouldRun = false;
+        vkFreeDescriptorSets(device, computeDescriptorPool[computes[i].shaderID], MAX_FRAMES_IN_FLIGHT, computes[i].descriptorSets.data());
+    }
+    void deleteResource(ShaderID i) {
+        unfilledShaderIDs.push_back(i);
+        vkDestroyPipeline(device, shaderGraphicsPipelines[i], nullptr);
+        vkDestroyPipelineLayout(device, shaderPipelineLayouts[i], nullptr);
+        vkDestroyDescriptorSetLayout(device, shaderDescriptorSetLayouts[i], nullptr);
+        vkDestroyDescriptorPool(device, shaderDescriptorPools[i], nullptr);
+    }
+    void deleteResource(ComputeShaderID i) {
+        unfilledComputeShaderIDs.push_back(i);
+        vkDestroyPipeline(device, computePipeline[i], nullptr);
+        vkDestroyPipelineLayout(device, computePipelineLayout[i], nullptr);
+        vkDestroyDescriptorSetLayout(device, computeDescriptorSetLayout[i], nullptr);
+        vkDestroyDescriptorPool(device, computeDescriptorPool[i], nullptr);
+    }
+    void deleteResource(TextureID i) {
+        unfilledTextureIDs.push_back(i);
+        vmaDestroyImage(allocator, textureImages[i], textureImageMemorys[i]);
+        vkDestroyImageView(device, textureImageViews[i], nullptr);
+    }
+    void deleteResource(MaterialID i) {
+        unfilledMaterialIDs.push_back(i);
+        vkFreeDescriptorSets(device, shaderDescriptorPools[materialShaderIDs[i]], MAX_FRAMES_IN_FLIGHT, materialDescriptorSets[i].data());
+    }
+
     RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer, VertexBufferID instanceBuffer) {
+        RenderObjectID i = getNewRenderObjectID();
         RenderObject renderObject;
         renderObject.indexBuffer = indexBuffer;
         renderObject.material = material;
         renderObject.vertexBuffer = vertexBuffer;
         renderObject.instanceBuffer = instanceBuffer;
         renderObject.numVertexBuffers = 2;
-        renderObjects.push_back(renderObject);
+        renderObject.shouldDraw = true;
+        renderObjects[i] = renderObject;
 
-        RenderObjectID renderObjectID = (RenderObjectID)(renderObjects.size() - 1);
-        for(size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        for(size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
-            VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[i].pMappedData;
-            drawCommands[renderObjectID].indexCount = indexNumIndices[renderObject.indexBuffer];
-            drawCommands[renderObjectID].instanceCount = vertexNumInstances[renderObject.instanceBuffer];
-            drawCommands[renderObjectID].firstIndex = 0;
-            drawCommands[renderObjectID].vertexOffset = 0;
-            drawCommands[renderObjectID].firstInstance = 0;
+            VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[j].pMappedData;
+            drawCommands[i].indexCount = indexNumIndices[renderObject.indexBuffer];
+            drawCommands[i].instanceCount = vertexNumInstances[renderObject.instanceBuffer];
+            drawCommands[i].firstIndex = 0;
+            drawCommands[i].vertexOffset = 0;
+            drawCommands[i].firstInstance = 0;
         }
 
-        return renderObjectID;
+        return i;
     }
 
     RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer) {
+        RenderObjectID i = getNewRenderObjectID();
         RenderObject renderObject;
         renderObject.indexBuffer = indexBuffer;
         renderObject.material = material;
         renderObject.vertexBuffer = vertexBuffer;
         renderObject.numVertexBuffers = 1;
-        renderObjects.push_back(renderObject);
+        renderObject.shouldDraw = true;
+        renderObjects[i] = renderObject;
 
-        RenderObjectID renderObjectID = (RenderObjectID)(renderObjects.size() - 1);
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
-            VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[i].pMappedData;
-            drawCommands[renderObjectID].indexCount = indexNumIndices[renderObject.indexBuffer];
-            drawCommands[renderObjectID].instanceCount = 1;
-            drawCommands[renderObjectID].firstIndex = 0;
-            drawCommands[renderObjectID].vertexOffset = 0;
-            drawCommands[renderObjectID].firstInstance = 0;
+            VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)drawCommandBufferMapped[j].pMappedData;
+            drawCommands[i].indexCount = indexNumIndices[renderObject.indexBuffer];
+            drawCommands[i].instanceCount = 1;
+            drawCommands[i].firstIndex = 0;
+            drawCommands[i].vertexOffset = 0;
+            drawCommands[i].firstInstance = 0;
         }
 
-        return renderObjectID;
+        return i;
     }
 
 
     ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer){
+        ComputeID i = getNewComputeID();
         Compute compute;
         compute.x = xDispatch;
         compute.y = yDispatch;
         compute.z = zDispatch;
-        compute.shaderID = computes.size();
+        compute.shaderID = computeShader;
+        compute.shouldRun = true;
         
         createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, uniformBuffers, numUniformBuffers, storageUniforms, numStorageUniforms, storageVertex, numStorageVertex, storageIndex, numStorageIndex, hasDrawCommandBuffer, false);
 
-        computes.push_back(compute);
-        return (ComputeID)(computes.size() - 1);
+        computes[i] = compute;
+        return i;
 
     }
 
@@ -263,15 +373,9 @@ namespace MZ {
         return i;
     }
 
-
     ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t maxNumberOfMaterial, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes)
     {
-        ShaderID i = (ShaderID)shaderGraphicsPipelines.size();
-
-        shaderGraphicsPipelines.resize(i + 1);
-        shaderDescriptorSetLayouts.resize(i + 1);
-        shaderPipelineLayouts.resize(i + 1);
-        shaderDescriptorPools.resize(i + 1);
+        ShaderID i = getNewShaderID();
 
         createDescriptorPool(shaderDescriptorPools[i], maxNumberOfMaterial, numTextures, numBuffers,0,0, false, false);
         createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures, numBuffers);
@@ -282,12 +386,7 @@ namespace MZ {
 
     ComputeShaderID createComputeShader(std::string computeShaderPath, uint32_t maxNumberOfComputes, uint32_t numUniformBuffers, uint32_t numStaticTextures, uint32_t numStorageBuffers, uint32_t numStorageTextues, bool hasDrawCommandBuffer)
     {
-        ComputeShaderID i = (ComputeShaderID)computePipeline.size();
-
-        computeDescriptorSetLayout.resize(i+1);
-        computePipelineLayout.resize(i+1);
-        computePipeline.resize(i+1);
-        computeDescriptorPool.resize(i+1);
+        ComputeShaderID i = getNewComputeShaderID();
 
         createDescriptorPool(computeDescriptorPool[i], maxNumberOfComputes, numStaticTextures, numUniformBuffers, numStorageBuffers, numStorageTextues, hasDrawCommandBuffer,false);
         createComputeDescriptorSetLayout(computeDescriptorSetLayout[i], numUniformBuffers, numStaticTextures, numStorageBuffers, numStorageTextues, hasDrawCommandBuffer);
@@ -296,15 +395,8 @@ namespace MZ {
     }
 
 
-    UniformBufferID createCPUMutUniformBuffer(void* data, uint32_t bufferSize) {
-        UniformBufferID i = (UniformBufferID)uniformBuffers.size();
-
-        uniformBuffers.resize(i+1);
-        uniformBuffersMemory.resize(i+1);
-        uniformBuffersMapped.resize(i+1);
-        uniformBuffersSize.resize(i+1);
-        uniformBufferData.resize(i+1);
-        uniformUpToDate.resize(i + 1);
+    UniformBufferID createCPUMutUniformBuffer(void* data, uint32_t dataSize, uint32_t bufferSize) {
+        UniformBufferID i = getNewUniformBufferID();
 
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
@@ -314,24 +406,17 @@ namespace MZ {
         uniformUpToDate[i] = 0;
         mutUniformBuffers.push_back(i);
         uniformBufferData[i] = malloc(bufferSize);
-        memcpy(uniformBufferData[i], data, bufferSize);
+        memcpy(uniformBufferData[i], data, dataSize);
         uniformBuffersSize[i] = bufferSize;
         return i;
     }
 
-    UniformBufferID createGPUMutUniformBuffer(void* data, uint32_t bufferSize) {
-        UniformBufferID i = (UniformBufferID)uniformBuffers.size();
-
-        uniformBuffers.resize(i + 1);
-        uniformBuffersMemory.resize(i + 1);
-        uniformBuffersMapped.resize(i + 1);
-        uniformBuffersSize.resize(i + 1);
-        uniformBufferData.resize(i + 1);
-        uniformUpToDate.resize(i + 1);
+    UniformBufferID createGPUMutUniformBuffer(void* data, uint32_t dataSize, uint32_t bufferSize){
+        UniformBufferID i = getNewUniformBufferID();
 
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
-            createGPUSideOnlyBuffer(data, bufferSize, bufferSize, uniformBuffers[i][j], uniformBuffersMemory[i][j], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+            createGPUSideOnlyBuffer(data, dataSize, bufferSize, uniformBuffers[i][j], uniformBuffersMemory[i][j], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
         }
 
         uniformUpToDate[i] = 0;
@@ -340,13 +425,8 @@ namespace MZ {
         return i;
     }
 
-    UniformBufferID createUniformBuffer(void* data, uint32_t bufferSize) {
-        UniformBufferID i = (UniformBufferID)uniformBuffers.size();
-        uniformBuffers.resize(i + 1);
-        uniformBuffersMemory.resize(i + 1);
-        uniformBuffersMapped.resize(i + 1);
-        uniformBuffersSize.resize(i + 1);
-        uniformBufferData.resize(i + 1);
+    UniformBufferID createConstUniformBuffer(void* data, uint32_t bufferSize) {
+        UniformBufferID i = getNewUniformBufferID();
 
         uniformBuffersSize[i] = bufferSize;
         createGPUSideOnlyBuffer(data, bufferSize,bufferSize,uniformBuffers[i][0], uniformBuffersMemory[i][0], VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
@@ -360,13 +440,8 @@ namespace MZ {
         return i;
     }
 
-    VertexBufferID createVertexBuffer(void* vertices, uint32_t numVertices, uint64_t bufferSize){
-        VertexBufferID i = (VertexBufferID)vertexBuffers.size();
-        vertexBuffers.resize(i+1);
-        vertexBufferMemorys.resize(i+1);
-        vertexBuffersSize.resize(i + 1);
-        vertexNumInstances.resize(i + 1);
-
+    VertexBufferID createConstVertexBuffer(void* vertices, uint32_t numVertices, uint64_t bufferSize){
+        VertexBufferID i = getNewVertexBufferID();
 
         vertexNumInstances[i] = numVertices;
         vertexBuffersSize[i] = bufferSize;
@@ -383,14 +458,7 @@ namespace MZ {
 
 
     VertexBufferID createCPUMutVertexBuffer(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize){
-        VertexBufferID i = (VertexBufferID)vertexBuffers.size();
-        vertexBuffers.resize(i + 1);
-        vertexBufferMemorys.resize(i + 1);
-        vertexBuffersMapped.resize(i + 1);
-        vertexBufferData.resize(i + 1);
-        vertexBuffersSize.resize(i + 1);
-        vertexUpToDate.resize(i + 1);
-        vertexNumInstances.resize(i + 1);
+        VertexBufferID i = getNewVertexBufferID();
 
         vertexNumInstances[i] = numVertices;
         vertexUpToDate[i] = 0;
@@ -407,14 +475,7 @@ namespace MZ {
     }
 
     VertexBufferID createGPUMutVertexBuffer(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize) {
-        VertexBufferID i = (VertexBufferID)vertexBuffers.size();
-        vertexBuffers.resize(i + 1);
-        vertexBufferMemorys.resize(i + 1);
-        vertexBuffersMapped.resize(i + 1);
-        vertexBufferData.resize(i + 1);
-        vertexBuffersSize.resize(i + 1);
-        vertexUpToDate.resize(i + 1);
-        vertexNumInstances.resize(i + 1);
+        VertexBufferID i = getNewVertexBufferID();
 
         vertexNumInstances[i] = numVertices;
         vertexUpToDate[i] = 0;
@@ -428,12 +489,8 @@ namespace MZ {
         return i;
     }
 
-    IndexBufferID createIndexBuffer(void* indices, uint64_t bufferSize) {
-        IndexBufferID i = (IndexBufferID)indexBuffers.size();
-        indexBuffers.resize(i + 1);
-        indexBufferMemorys.resize(i + 1);
-        indexBuffersSize.resize(i + 1);
-        indexNumIndices.resize(i + 1);
+    IndexBufferID createConstIndexBuffer(void* indices, uint64_t bufferSize) {
+        IndexBufferID i = getNewIndexBufferID();
 
         indexNumIndices[i] = bufferSize / sizeof(uint32_t);
         indexBuffersSize[i] = bufferSize;
@@ -449,14 +506,7 @@ namespace MZ {
     }
 
     IndexBufferID createCPUMutIndexBuffer(void* indices, uint32_t numIndices, uint64_t bufferSize){
-        IndexBufferID i = (IndexBufferID)indexBuffers.size();
-        indexBuffers.resize(i + 1);
-        indexBufferMemorys.resize(i + 1);
-        indexBuffersMapped.resize(i + 1);
-        indexBufferData.resize(i + 1);
-        indexNumIndices.resize(i + 1);
-        indexUpToDate.resize(i + 1);
-        indexBuffersSize.resize(i + 1);
+        IndexBufferID i = getNewIndexBufferID();
 
         indexNumIndices[i] = numIndices;
         indexUpToDate[i] = 0;
@@ -473,14 +523,7 @@ namespace MZ {
     }
 
     IndexBufferID createGPUMutIndexBuffer(void* indices, uint32_t numIndices, uint64_t bufferSize) {
-        IndexBufferID i = (IndexBufferID)indexBuffers.size();
-        indexBuffers.resize(i + 1);
-        indexBufferMemorys.resize(i + 1);
-        indexBuffersMapped.resize(i + 1);
-        indexBufferData.resize(i + 1);
-        indexNumIndices.resize(i + 1);
-        indexUpToDate.resize(i + 1);
-        indexBuffersSize.resize(i + 1);
+        IndexBufferID i = getNewIndexBufferID();
 
         indexNumIndices[i] = numIndices;
         indexUpToDate[i] = 0;
@@ -496,14 +539,21 @@ namespace MZ {
 
 
     TextureID createTexture(std::string textureFilepath) {
-        TextureID i = (TextureID)textureImages.size();
-        textureImages.resize(i + 1);
-        textureImageMemorys.resize(i + 1);
-        textureImageViews.resize(i + 1);
+        TextureID i = getNewTextrueID();
 
         createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
         return i;
     }
+
+    void deleteResource(UniformBufferID id);
+    void deleteResource(VertexBufferID id);
+    void deleteResource(IndexBufferID id);
+    void deleteResource(RenderObjectID id);
+    void deleteResource(ComputeID id);
+    void deleteResource(ShaderID id);
+    void deleteResource(ComputeShaderID id);
+    void deleteResource(TextureID id);
+
 
     void updateCPUMutUniformBuffer(UniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset) {
         memcpy((void*)((intptr_t)uniformBufferData[buffer] + offset), data, dataSize);
@@ -646,6 +696,7 @@ namespace MZ {
     }
 
     void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame) {
+
         //drawing
         for (size_t i = 0; i < renderObjects.size() - 1; i++)
         {
@@ -656,7 +707,7 @@ namespace MZ {
             VkBuffer instance = vertexBuffers[renderObject.instanceBuffer][renderFrame];
             VkBuffer vertexBuffers[] = { vertex, instance };
             VkDeviceSize offsets[] = { 0, 0 };
-            vkCmdBindVertexBuffers(commandBuffer, 0, renderObjects[i].numVertexBuffers, vertexBuffers, offsets);
+            vkCmdBindVertexBuffers(commandBuffer, 0, renderObject.numVertexBuffers, vertexBuffers, offsets);
 
             vkCmdBindIndexBuffer(commandBuffer, indexBuffers[renderObject.indexBuffer][renderFrame], 0, VK_INDEX_TYPE_UINT32);
 
@@ -1319,7 +1370,7 @@ namespace MZ {
 
     void createDefferdGraphicsPipline(std::string fragShaderPath)
     {
-        auto vertShaderCode = readFile("../../../shaders/defferedVert.spv");
+        auto vertShaderCode = readFile( rendererDir + "shaders/defferedVert.spv");
         auto fragShaderCode = readFile(fragShaderPath);
 
         VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
@@ -1646,45 +1697,6 @@ namespace MZ {
         }
     }
 
-
-    void createIndexBuffer(uint32_t* indices, VkBuffer& indexBuffer, VmaAllocation& indexBufferMemory, uint32_t numIndices)
-    {
-        VkDeviceSize bufferSize = sizeof(uint32_t) * numIndices;
-
-        VkBuffer stagingBuffer;
-        VmaAllocation stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory, Mapping);
-
-        void* data;
-        vmaMapMemory(allocator, stagingBufferMemory, &data);
-        memcpy(data, indices, (size_t)bufferSize);
-        vmaUnmapMemory(allocator, stagingBufferMemory);
-
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory, NoMapping);
-
-        copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-
-        vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferMemory);
-    }
-
-    void createVertexBuffer(void* vertices, VkBuffer& vertexBuffer, VmaAllocation& vertexBufferMemory, VkDeviceSize bufferSize)
-    {
-        VkBuffer stagingBuffer;
-        VmaAllocation stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory, Mapping);
-
-        void* data;
-        vmaMapMemory(allocator, stagingBufferMemory, &data);
-        memcpy(data, vertices, (size_t)bufferSize);
-        vmaUnmapMemory(allocator, stagingBufferMemory);
-
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory, NoMapping);
-
-        copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
-
-        vmaDestroyBuffer(allocator, stagingBuffer, stagingBufferMemory);
-    }
-
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
     {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
@@ -1830,6 +1842,133 @@ namespace MZ {
         vkQueueWaitIdle(graphicsQueue);
 
         vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+    }
+
+
+    ComputeID getNewComputeID() {
+        if (!unfilledComputeIDs.empty()) {
+            ComputeID i = unfilledComputeIDs.back();
+            unfilledComputeIDs.pop_back();
+            return i;
+        }
+        ComputeID i = (ComputeID)computes.size();
+        computes.resize(i + 1);
+        return i;
+    }
+
+    RenderObjectID getNewRenderObjectID() {
+        if (!unfilledRenderObjectIDs.empty()) {
+            RenderObjectID i = unfilledRenderObjectIDs.back();
+            unfilledRenderObjectIDs.pop_back();
+            return i;
+        }
+        RenderObjectID i = (RenderObjectID)renderObjects.size();
+        renderObjects.resize(i + 1);
+        return i;
+    }
+
+    MaterialID getNewMaterialID() {
+        if (!unfilledMaterialIDs.empty()) {
+            MaterialID i = unfilledMaterialIDs.back();
+            unfilledMaterialIDs.pop_back();
+            return i;
+        }
+        MaterialID i = (MaterialID)materialShaderIDs.size();
+        materialShaderIDs.resize(i + 1);
+        materialDescriptorSets.resize(i + 1);
+        return i;
+    }
+
+    ShaderID getNewShaderID() {
+        if (!unfilledShaderIDs.empty()) {
+            ShaderID i = unfilledShaderIDs.back();
+            unfilledShaderIDs.pop_back();
+            return i;
+        }
+        ShaderID i = (ShaderID)shaderGraphicsPipelines.size();
+        shaderGraphicsPipelines.resize(i + 1);
+        shaderDescriptorSetLayouts.resize(i + 1);
+        shaderPipelineLayouts.resize(i + 1);
+        shaderDescriptorPools.resize(i + 1);
+        return i;
+    }
+
+    VertexBufferID getNewVertexBufferID() {
+        if (!unfilledVertexBufferIDs.empty()) {
+            VertexBufferID i = unfilledVertexBufferIDs.back();
+            unfilledVertexBufferIDs.pop_back();
+            return i;
+        }
+        VertexBufferID i = (VertexBufferID)vertexBuffers.size();
+        vertexBuffers.resize(i + 1);
+        vertexBufferMemorys.resize(i + 1);
+        vertexBuffersMapped.resize(i + 1);
+        vertexBufferData.resize(i + 1);
+        vertexBuffersSize.resize(i + 1);
+        vertexUpToDate.resize(i + 1);
+        vertexNumInstances.resize(i + 1);
+        return i;
+    }
+
+    UniformBufferID getNewUniformBufferID() {
+        if (!unfilledUniformBufferIDs.empty()) {
+            UniformBufferID i = unfilledUniformBufferIDs.back();
+            unfilledUniformBufferIDs.pop_back();
+            return i;
+        }
+        UniformBufferID i = (UniformBufferID)uniformBuffers.size();
+        uniformBuffers.resize(i + 1);
+        uniformBuffersMemory.resize(i + 1);
+        uniformBuffersMapped.resize(i + 1);
+        uniformBuffersSize.resize(i + 1);
+        uniformBufferData.resize(i + 1);
+        uniformUpToDate.resize(i + 1);
+        return i;
+    }
+
+    IndexBufferID getNewIndexBufferID() {
+        if (!unfilledIndexBufferIDs.empty()) {
+            IndexBufferID i = unfilledIndexBufferIDs.back();
+            unfilledIndexBufferIDs.pop_back();
+            return i;
+        }
+        IndexBufferID i = (IndexBufferID)indexBuffers.size();
+        indexBuffers.resize(i + 1);
+        indexBufferMemorys.resize(i + 1);
+        indexBuffersMapped.resize(i + 1);
+        indexBufferData.resize(i + 1);
+        indexNumIndices.resize(i + 1);
+        indexUpToDate.resize(i + 1);
+        indexBuffersSize.resize(i + 1);
+        return i;
+    }
+
+    ComputeShaderID getNewComputeShaderID() {
+        if (!unfilledComputeShaderIDs.empty()) {
+            ComputeShaderID i = unfilledComputeShaderIDs.back();
+            unfilledComputeShaderIDs.pop_back();
+            return i;
+        }
+        ComputeShaderID i = (ComputeShaderID)computePipeline.size();
+        computeDescriptorSetLayout.resize(i + 1);
+        computePipelineLayout.resize(i + 1);
+        computePipeline.resize(i + 1);
+        computeDescriptorPool.resize(i + 1);
+        return i;
+    }
+
+
+    TextureID getNewTextrueID() {
+        if (!unfilledTextureIDs.empty()) {
+            TextureID i = unfilledTextureIDs.back();
+            unfilledTextureIDs.pop_back();
+            return i;
+        }
+        TextureID i = (TextureID)textureImages.size();
+        textureImages.resize(i + 1);
+        textureImageMemorys.resize(i + 1);
+        textureImageViews.resize(i + 1);
+        return i;
     }
 
     void cleanupSwapChain() {

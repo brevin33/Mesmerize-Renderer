@@ -13,8 +13,8 @@ namespace MZ {
 	ComputeShaderID cullingShader;
 	ComputeID mainCullingCompute;
 
-	void setup(GLFWwindow* window, int numGBuffers) {
-		setupNoDefaults(window, numGBuffers);
+	void setup(GLFWwindow* window, int numGBuffers, std::string pathToRendererDir){
+		setupNoDefaults(window, numGBuffers, pathToRendererDir);
 		setupDefaults();
 	}
 
@@ -26,7 +26,7 @@ namespace MZ {
 	void setupDefaults() {
 		createMainCameraBuffer();
 		createCullingBuffer();
-		cullingShader = createComputeShader("../../../shaders/culling.spv", 1, 3, 0, 0, 0, true);
+		cullingShader = createComputeShader( rendererDir + "/shaders/culling.spv", 1, 3, 0, 0, 0, true);
 		mainCullingCompute = createCullingCompute(mainCameraBuffer, mainCameraFullcrumBuffer);
 
 	}
@@ -36,10 +36,10 @@ namespace MZ {
 		glm::mat4 proj = glm::perspective(glm::radians(45.0f), MZ::getRenderWidth() / (float)MZ::getRenderHeight(), 0.1f, 10.0f);
 		proj[1][1] *= -1;
 		glm::mat4 viewproj = proj * view;
-		mainCameraBuffer = createCPUMutUniformBuffer(&viewproj, sizeof(glm::mat4));
+		mainCameraBuffer = createCPUMutUniformBuffer(&viewproj, sizeof(glm::mat4), sizeof(glm::mat4));
 
 		cameraFullcrums fullcrums = {};
-		mainCameraFullcrumBuffer = createCPUMutUniformBuffer(&fullcrums, sizeof(cameraFullcrums));
+		mainCameraFullcrumBuffer = createCPUMutUniformBuffer(&fullcrums, sizeof(cameraFullcrums), sizeof(cameraFullcrums));
 	}
 
 	void updateCameraFullcrumBuffer(glm::mat4 viewproj, UniformBufferID buffer) {
@@ -62,7 +62,7 @@ namespace MZ {
 		void* bufferDefault = malloc((sizeof(glm::vec4) + sizeof(uint32_t)) * MAX_COMMANDS);
 		memcpy(bufferDefault, defaultSpheres.data(), defaultSpheres.size() * sizeof(glm::vec4));
 		memcpy((void*)((intptr_t)bufferDefault + defaultSpheres.size() * sizeof(glm::vec4)), defaultInstancCount.data(), defaultInstancCount.size() * sizeof(uint32_t));
-		cullingBuffer = createCPUMutUniformBuffer(bufferDefault, (sizeof(glm::vec4) + sizeof(uint32_t)) * MAX_COMMANDS);
+		cullingBuffer = createCPUMutUniformBuffer(bufferDefault, (sizeof(glm::vec4) + sizeof(uint32_t)) * MAX_COMMANDS, (sizeof(glm::vec4) + sizeof(uint32_t)) * MAX_COMMANDS);
 		free(bufferDefault);
 	}
 

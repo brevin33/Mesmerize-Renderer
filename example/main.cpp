@@ -2,6 +2,10 @@
 #include <Mesmerize/Renderer.h>
 #include "Model.h"
 #include <Mesmerize/Defaults.h>
+#include <filesystem>
+
+
+
 
 constexpr int WIDTH = 1920;
 constexpr int HEIGHT = 1080;
@@ -27,13 +31,15 @@ void updateCamera(MZ::UniformBufferID cameraBuffer) {
 }
 
 
+
 void main() {
+	std::cout << std::filesystem::current_path() << std::endl;
 	glfwInit();
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
 	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, GraphicsAPI, nullptr, nullptr);
-	MZ::setup(window,1);
+	MZ::setup(window,1, "../../../");
 
 	MZ::setDefferedShader("../../../shaders/defferedFrag.spv", nullptr, 0, nullptr, 0);
 
@@ -83,8 +89,8 @@ void main() {
 	std::vector<MZ::IndexBufferID> backpackIndexBuffers;
 	for (size_t i = 0; i < backpack.modelVertices.size(); i++)
 	{
-		backpackVertexBuffers.push_back(MZ::createVertexBuffer(backpack.modelVertices[i].data(), backpack.modelVertices[i].size(), sizeof(Vertex) * backpack.modelVertices[i].size()));
-		backpackIndexBuffers.push_back(MZ::createIndexBuffer(backpack.modelIndices[i].data(), backpack.modelIndices[i].size() * sizeof(uint32_t)));
+		backpackVertexBuffers.push_back(MZ::createConstVertexBuffer(backpack.modelVertices[i].data(), backpack.modelVertices[i].size(), sizeof(Vertex) * backpack.modelVertices[i].size()));
+		backpackIndexBuffers.push_back(MZ::createConstIndexBuffer(backpack.modelIndices[i].data(), backpack.modelIndices[i].size() * sizeof(uint32_t)));
 	}
 
 	//creating a instance Buffer

@@ -47,13 +47,13 @@ namespace MZ{
     /// must call before doing anything can optionally use setupNoDefaults
     /// </summary>
     /// <param name="window"> surface to render to </param>
-    void setup(GLFWwindow* window, int numGBuffers);
+    void setup(GLFWwindow* window, int numGBuffers, std::string pathToRendererDir);
 
     /// <summary>
     /// setup but this has no default buffers for stuff like culling
     /// </summary>
     /// <param name="window"> surface to render to </param>
-    void setupNoDefaults(GLFWwindow* window, int numGColorBuffers);
+    void setupNoDefaults(GLFWwindow* window, int numGColorBuffers, std::string pathToRendererDir);
 
     /// <summary>
     /// call when you no longer want to render or at end of program
@@ -119,23 +119,44 @@ namespace MZ{
     /// <summary>
     /// a vertex buffer can hold vertex data or instance data. you must specify the types of mutability by calling the right constructor
     /// </summary>
-    VertexBufferID createVertexBuffer(void* vertices, uint32_t numVertices,uint64_t bufferSize);
+    VertexBufferID createConstVertexBuffer(void* vertices, uint32_t numVertices,uint64_t bufferSize);
     VertexBufferID createCPUMutVertexBuffer(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize);
     VertexBufferID createGPUMutVertexBuffer(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize);
 
     /// <summary>
     /// a index buffer can hold indexs connecting vertices. you must specify the types of mutability by calling the right constructor
     /// </summary>
-    IndexBufferID createIndexBuffer(void* indices, uint64_t bufferSize);
+    IndexBufferID createConstIndexBuffer(void* indices, uint64_t bufferSize);
     IndexBufferID createCPUMutIndexBuffer(void* indices, uint32_t numIndices, uint64_t bufferSize);
     IndexBufferID createGPUMutIndexBuffer(void* indices, uint32_t numIndices, uint64_t bufferSize);
 
     /// <summary>
     /// a uniform buffer can be made to pass information in to shaders. you must specify the types of mutability by calling the right constructor
     /// </summary>
-    UniformBufferID createUniformBuffer(void* data, uint32_t bufferSize);
-    UniformBufferID createCPUMutUniformBuffer(void* data, uint32_t bufferSize);
-    UniformBufferID createGPUMutUniformBuffer(void* data, uint32_t bufferSize);
+    UniformBufferID createConstUniformBuffer(void* data, uint32_t bufferSize);
+    UniformBufferID createCPUMutUniformBuffer(void* data, uint32_t dataSize, uint32_t bufferSize);
+    UniformBufferID createGPUMutUniformBuffer(void* data, uint32_t dataSize, uint32_t bufferSize);
+
+
+    /// <summary>
+    /// Deletes The Resource
+    /// </summary>
+    void deleteResourceCPU(UniformBufferID id);
+    void deleteResourceConst(UniformBufferID id);
+    void deleteResourceGPU(UniformBufferID id);
+    void deleteResourceGPU(VertexBufferID id);
+    void deleteResourceCPU(VertexBufferID id);
+    void deleteResourceConst(VertexBufferID id);
+    void deleteResourceConst(IndexBufferID id);
+    void deleteResourceCPU(IndexBufferID id);
+    void deleteResourceGPU(IndexBufferID id);
+    void deleteResource(RenderObjectID id);
+    void deleteResource(ComputeID id);
+    void deleteResource(ShaderID id);
+    void deleteResource(ComputeShaderID id);
+    void deleteResource(TextureID id);
+    void deleteResource(MaterialID id);
+
 
     /// <summary>
     /// update a part or all of a buffer. must be CPUMutable buffer or will crash
@@ -145,7 +166,7 @@ namespace MZ{
     void updateCPUMutIndexBuffer(IndexBufferID buffer, void* data, uint32_t dataSize, uint32_t offset = 0);
 
     /// <summary>
-    /// get a buffers data can olny be done for cpu buffers
+    /// get a buffers data can only be done for cpu buffers
     /// </summary>
     void* getCPUMutUniformBufferData(UniformBufferID buffer);
     void* getCPUMutVertexBufferData(VertexBufferID buffer);

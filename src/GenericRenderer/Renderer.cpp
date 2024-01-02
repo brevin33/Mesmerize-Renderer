@@ -1,6 +1,9 @@
 #include <GenericRenderer/DefaultRenderer.h>
 
 namespace MZ {
+	std::string rendererDir;
+
+
 	RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer, BoundingSphere boundingSphere) {
 		RenderObjectID i = addRenderObject(material, vertexBuffer, indexBuffer);
 		addToCullingBuffer(boundingSphere, i, 1);

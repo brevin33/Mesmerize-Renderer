@@ -116,6 +116,18 @@ namespace MZ {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     };
 
+    std::vector<TextureID> unfilledTextureIDs;
+    std::vector<MaterialID> unfilledMaterialIDs;
+    std::vector<ShaderID> unfilledShaderIDs;
+    std::vector<VertexBufferID> unfilledVertexBufferIDs;
+    std::vector<UniformBufferID> unfilledUniformBufferIDs;
+    std::vector<IndexBufferID> unfilledIndexBufferIDs;
+    std::vector<ComputeShaderID> unfilledComputeShaderIDs;
+    std::vector<ComputeID> unfilledComputeIDs;
+    std::vector<RenderObjectID> unfilledRenderObjectIDs;
+
+
+
     std::vector<UniformBufferID> mutUniformBuffers;
     std::vector<VertexBufferID> mutVertexBuffers;
     std::vector<IndexBufferID> mutIndexBuffers;
@@ -130,6 +142,7 @@ namespace MZ {
 
     // should index by RenderObjectID
     struct RenderObject {
+        bool shouldDraw;
         MaterialID material;
         VertexBufferID vertexBuffer;
         IndexBufferID indexBuffer;
@@ -140,6 +153,7 @@ namespace MZ {
 
     // should index by ComputeID
     struct Compute {
+        bool shouldRun;
         ComputeShaderID shaderID;
         uint32_t x;
         uint32_t y;
@@ -153,6 +167,7 @@ namespace MZ {
     std::vector<VkPipelineLayout> computePipelineLayout;
     std::vector<VkPipeline> computePipeline;
     std::vector<VkDescriptorPool> computeDescriptorPool;
+
 
     // should index by UniformBufferID
     std::vector<std::array<VkBuffer, MAX_FRAMES_IN_FLIGHT>> uniformBuffers;
@@ -243,10 +258,6 @@ namespace MZ {
 
     void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures, uint32_t numBuffers);
 
-    void createIndexBuffer(uint32_t* indices, VkBuffer& indexBuffer, VmaAllocation& indexBufferMemory, uint32_t numIndices);
-
-    void createVertexBuffer(void* vertices, VkBuffer& vertexBuffer, VmaAllocation& vertexBufferMemory, VkDeviceSize bufferSize);
-
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VmaAllocation& bufferMemory, BufferMappingType mapping, VmaAllocationInfo* allocationInfo = nullptr);
@@ -272,6 +283,24 @@ namespace MZ {
     static std::vector<char> readFile(const std::string& filename);
 
     VkShaderModule createShaderModule(const std::vector<char>& code);
+
+    ComputeID getNewComputeID();
+
+    RenderObjectID getNewRenderObjectID();
+
+    MaterialID getNewMaterialID();
+
+    ShaderID getNewShaderID();
+
+    VertexBufferID getNewVertexBufferID();
+
+    UniformBufferID getNewUniformBufferID();
+
+    IndexBufferID getNewIndexBufferID();
+
+    ComputeShaderID getNewComputeShaderID();
+
+    TextureID getNewTextrueID();
 
     void createSyncObjects();
 
