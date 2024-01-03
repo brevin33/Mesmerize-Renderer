@@ -698,7 +698,7 @@ namespace MZ {
     void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame) {
 
         //drawing
-        for (size_t i = 0; i < renderObjects.size() - 1; i++)
+        for (size_t i = 0; i < renderObjects.size(); i++)
         {
             RenderObject renderObject = renderObjects[i];
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[materialShaderIDs[renderObject.material]]);

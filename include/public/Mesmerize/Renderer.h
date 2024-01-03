@@ -44,16 +44,11 @@ namespace MZ{
     };
 
     /// <summary>
-    /// must call before doing anything can optionally use setupNoDefaults
+    /// must call before doing anything
     /// </summary>
     /// <param name="window"> surface to render to </param>
     void setup(GLFWwindow* window, int numGBuffers, std::string pathToRendererDir);
 
-    /// <summary>
-    /// setup but this has no default buffers for stuff like culling
-    /// </summary>
-    /// <param name="window"> surface to render to </param>
-    void setupNoDefaults(GLFWwindow* window, int numGColorBuffers, std::string pathToRendererDir);
 
     /// <summary>
     /// call when you no longer want to render or at end of program

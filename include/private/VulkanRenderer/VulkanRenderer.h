@@ -220,6 +220,8 @@ namespace MZ {
     "VK_LAYER_KHRONOS_validation"
     };
 
+    void setupNoDefaults(GLFWwindow* window, int numGColorBuffers, std::string pathToRendererDir);
+
     void drawObjects(VkCommandBuffer& commandBuffer, uint32_t renderFrame);
 
     void recreateSwapChain();

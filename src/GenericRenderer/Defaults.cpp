@@ -12,6 +12,7 @@ namespace MZ {
 	UniformBufferID cullingBuffer;
 	ComputeShaderID cullingShader;
 	ComputeID mainCullingCompute;
+	extern void setupNoDefaults(GLFWwindow* window, int numGBuffers, std::string pathToRendererDir);
 
 	void setup(GLFWwindow* window, int numGBuffers, std::string pathToRendererDir){
 		setupNoDefaults(window, numGBuffers, pathToRendererDir);

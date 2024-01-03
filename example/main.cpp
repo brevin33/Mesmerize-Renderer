@@ -9,7 +9,7 @@
 
 constexpr int WIDTH = 1920;
 constexpr int HEIGHT = 1080;
-
+constexpr bool fullScreen = false;
 
 
 void spin(MZ::VertexBufferID instanceBuffer) {
@@ -37,8 +37,15 @@ void main() {
 	glfwInit();
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, GraphicsAPI, nullptr, nullptr);
+	GLFWwindow* window;
+	if (fullScreen) {
+		window = glfwCreateWindow(glfwGetVideoMode(glfwGetPrimaryMonitor())->width,
+			glfwGetVideoMode(glfwGetPrimaryMonitor())->height, "example",
+			glfwGetPrimaryMonitor(), nullptr);
+	}
+	else {
+		window = glfwCreateWindow(WIDTH, HEIGHT, "example", nullptr, nullptr);
+	}
 	MZ::setup(window,1, "../../../");
 
 	MZ::setDefferedShader("../../../shaders/defferedFrag.spv", nullptr, 0, nullptr, 0);
