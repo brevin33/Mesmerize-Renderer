@@ -11,7 +11,7 @@ Mesmerize Renderer is a mid-low level Renderer API built on top of Vulkan, but I
 ## Install
 You can build the library using CMake.
 
-if you are using CMake then you can add this to your CMake by downloading this project or using git submodules and and this to your CMake
+if you are using CMake then you can add this to your CMake by downloading this project or using git submodules and adding this to your CMake
 
 ```
 add_subdirectory(MesmerizeRenderer)
