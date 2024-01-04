@@ -545,16 +545,6 @@ namespace MZ {
         return i;
     }
 
-    void deleteResource(UniformBufferID id);
-    void deleteResource(VertexBufferID id);
-    void deleteResource(IndexBufferID id);
-    void deleteResource(RenderObjectID id);
-    void deleteResource(ComputeID id);
-    void deleteResource(ShaderID id);
-    void deleteResource(ComputeShaderID id);
-    void deleteResource(TextureID id);
-
-
     void updateCPUMutUniformBuffer(UniformBufferID buffer, void* data, uint32_t dataSize, uint32_t offset) {
         memcpy((void*)((intptr_t)uniformBufferData[buffer] + offset), data, dataSize);
         uniformUpToDate[buffer] = 0;
@@ -1519,7 +1509,7 @@ namespace MZ {
         std::array<VkVertexInputBindingDescription,2> bindingDescription = { vertexBindingDescription , instanceBindingDescription };
         vertexAttributeDescriptions.insert(vertexAttributeDescriptions.end(), instanceAttributeDescriptions.begin(), instanceAttributeDescriptions.end());
 
-        vertexInputInfo.vertexBindingDescriptionCount = bindingDescription.size();
+        vertexInputInfo.vertexBindingDescriptionCount = numInstanceTypes == 0 ? 1: 2;
         vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributeDescriptions.size());
         vertexInputInfo.pVertexBindingDescriptions = bindingDescription.data();
         vertexInputInfo.pVertexAttributeDescriptions = vertexAttributeDescriptions.data();
