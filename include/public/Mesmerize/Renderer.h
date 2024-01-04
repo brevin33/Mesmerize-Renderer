@@ -99,6 +99,8 @@ namespace MZ{
     /// </summary>
     ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t maxNumberOfMaterial, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues,
         VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, std::string tessalizationControlShaderPath, std::string tessalizationEvaluationShaderPath, uint32_t maxNumberOfMaterial, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues,
+        VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
 
     /// <summary>
     /// a compute shader this can be dispached in multiple way by adding a compute.
