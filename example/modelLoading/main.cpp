@@ -58,7 +58,9 @@ void main() {
 	//loading shader
 	std::vector<MZ::VertexValueType> vertValues = Vertex::getVertexValueTypes();
 	MZ::VertexValueType instanceValue = MZ::VTfloat4x4;
-	MZ::ShaderID unlitShader = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv", 1, 1, 1, vertValues.data(), vertValues.size(), &instanceValue, 1);
+	MZ::ShaderStages textureStages = MZ::SSFrag;
+	MZ::ShaderStages bufferStages = MZ::SSVert;
+	MZ::ShaderID unlitShader = MZ::createShader("../../../shaders/unlitVert.spv", "../../../shaders/unlitFrag.spv",1, &textureStages, 1, &bufferStages, 1, vertValues.data(), vertValues.size(), &instanceValue, 1, MZ::BackCull);
 
 	// load model from file
 	Model backpack("../../../models/backpack/backpack.obj");
@@ -129,8 +131,8 @@ void main() {
 		glm::mat4 view = camera.GetViewMatrix();
 		glm::mat4 proj = glm::perspective(glm::radians(45.0f), MZ::getRenderWidth() / (float)MZ::getRenderHeight(), 0.1f, 10.0f);
 		proj[1][1] *= -1;
-		view = proj * view;
-		MZ::updateCPUMutUniformBuffer(MZ::mainCameraBuffer, &view, sizeof(view), 0);
+		glm::mat4 cambuf[] = { view, proj };
+		MZ::updateCPUMutUniformBuffer(MZ::mainCameraBuffer, cambuf, sizeof(glm::mat4) * 2, 0);
 		
 		spin(instanceBuffer);
 

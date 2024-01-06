@@ -255,11 +255,11 @@ namespace MZ {
         bool isDefferedShader);
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes,
-        std::string tessContorlShaderPath = "", std::string tessEvaluationShaderPath = "");
+        std::string tessContorlShaderPath, std::string tessEvaluationShaderPath, CullMode cullMode);
 
     void createDefferdGraphicsPipline(std::string fragShaderPath);
 
-    void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures, uint32_t numBuffers);
+    void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, ShaderStages* textureAccess, int numTextures, ShaderStages* bufferAccess, uint32_t numBuffers);
 
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 

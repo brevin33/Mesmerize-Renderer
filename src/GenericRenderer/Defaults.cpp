@@ -20,14 +20,15 @@ namespace MZ {
 	}
 
 	void drawFrame() {
-		updateCameraFullcrumBuffer(*(glm::mat4*)getCPUMutUniformBufferData(mainCameraBuffer), mainCameraFullcrumBuffer);
+		glm::mat4* camBuf = (glm::mat4*)getCPUMutUniformBufferData(mainCameraBuffer);
+		updateCameraFullcrumBuffer(camBuf[0] * camBuf[1], mainCameraFullcrumBuffer);
 		renderFrame();
 	}
 
 	void setupDefaults() {
 		createMainCameraBuffer();
 		createCullingBuffer();
-		cullingShader = createComputeShader( rendererDir + "/shaders/culling.spv", 1, 3, 0, 0, 0, true);
+		cullingShader = createComputeShader( rendererDir + "/shaders/culling.spv", 1, 2, 0, 0, 0, true);
 		mainCullingCompute = createCullingCompute(mainCameraBuffer, mainCameraFullcrumBuffer);
 
 	}
@@ -36,8 +37,8 @@ namespace MZ {
 		glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 		glm::mat4 proj = glm::perspective(glm::radians(45.0f), MZ::getRenderWidth() / (float)MZ::getRenderHeight(), 0.1f, 10.0f);
 		proj[1][1] *= -1;
-		glm::mat4 viewproj = proj * view;
-		mainCameraBuffer = createCPUMutUniformBuffer(&viewproj, sizeof(glm::mat4), sizeof(glm::mat4));
+		glm::mat4 buf[] = { view, proj };
+		mainCameraBuffer = createCPUMutUniformBuffer(&buf, sizeof(glm::mat4) * 2, sizeof(glm::mat4) * 2);
 
 		cameraFullcrums fullcrums = {};
 		mainCameraFullcrumBuffer = createCPUMutUniformBuffer(&fullcrums, sizeof(cameraFullcrums), sizeof(cameraFullcrums));
@@ -68,8 +69,8 @@ namespace MZ {
 	}
 
 	ComputeID createCullingCompute(UniformBufferID cameraBuffer, UniformBufferID cameraFullcrumBuffer) {
-		std::array<UniformBufferID, 3> cullingUniformBuffers = { cullingBuffer, cameraBuffer, cameraFullcrumBuffer };
-		return addCompute(cullingShader, MAX_COMMANDS/32, 1, 1, cullingUniformBuffers.data(), 3, nullptr, 0, nullptr, 0, nullptr, 0, nullptr, 0, true);
+		std::array<UniformBufferID, 3> cullingUniformBuffers = { cullingBuffer, cameraFullcrumBuffer };
+		return addCompute(cullingShader, MAX_COMMANDS/32, 1, 1, cullingUniformBuffers.data(), 2, nullptr, 0, nullptr, 0, nullptr, 0, nullptr, 0, true);
 	}
 
 	void addToCullingBuffer(BoundingSphere& boundingSphere, RenderObjectID renderObjectID, uint32_t instanceCount) {

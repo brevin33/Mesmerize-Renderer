@@ -22,19 +22,15 @@ layout(binding = 0) uniform boundingSphere{
     uvec4 instanceCount[1024/4];
 } spheres;
 
-layout(binding = 1) uniform cameraInfo{ 
-    mat4 viewproj;
-} camera;
-
-layout(binding = 2) uniform cameraFullcrumsInfo{
+layout(binding = 1) uniform cameraFullcrumsInfo{
     Fullcrums fullcrums[1024];
 } cameraFullcrums;
 
-layout(binding = 3) readonly buffer drawCommandSSBOIn {
+layout(binding = 2) readonly buffer drawCommandSSBOIn {
    VkDrawIndexedIndirectCommand  drawCommandsIn[1024];
 };
 
-layout(binding = 4) buffer drawCommandSSBOOut {
+layout(binding = 3) buffer drawCommandSSBOOut {
    VkDrawIndexedIndirectCommand  drawCommandsOut[1024];
 };
 

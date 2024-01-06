@@ -43,6 +43,15 @@ namespace MZ{
         VTfloat2x2,
     };
 
+    typedef int ShaderStages;
+    typedef enum ShaderStage {
+        SSVert = VK_SHADER_STAGE_VERTEX_BIT,
+        SSFrag = VK_SHADER_STAGE_FRAGMENT_BIT,
+        SSTessCon = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
+        SSTessEval = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
+    };
+
+
     /// <summary>
     /// must call before doing anything
     /// </summary>
@@ -94,13 +103,21 @@ namespace MZ{
     /// </summary>
     MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers);
 
+
+
+    enum CullMode {
+        FrontCull = VK_CULL_MODE_FRONT_BIT,
+        BackCull = VK_CULL_MODE_BACK_BIT,
+        NoCull = VK_CULL_MODE_NONE,
+        BothCull = VK_CULL_MODE_FRONT_AND_BACK,
+    };
     /// <summary>
     /// a vert and fragment shader. multiple materials cand be created from a single shader
     /// </summary>
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t maxNumberOfMaterial, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues,
-        VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, std::string tessalizationControlShaderPath, std::string tessalizationEvaluationShaderPath, uint32_t maxNumberOfMaterial, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues,
-        VertexValueType* InstanceTypes, uint32_t numInstanceTypes);
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t maxNumberOfMaterial, ShaderStages* textureAccess, uint32_t numTextures, ShaderStages* bufferAccess, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues,
+        VertexValueType* InstanceTypes, uint32_t numInstanceTypes, CullMode cullMode);
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, std::string tessalizationControlShaderPath, std::string tessalizationEvaluationShaderPath, uint32_t maxNumberOfMaterial, ShaderStages* textureAccess, uint32_t numTextures,
+        ShaderStages* bufferAccess, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes, CullMode cullMode);
 
     /// <summary>
     /// a compute shader this can be dispached in multiple way by adding a compute.

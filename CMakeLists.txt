@@ -45,7 +45,11 @@ endif()
 
 
 # build example folder
-find_package(assimp CONFIG REQUIRED)
-add_executable (example "example/main.cpp" "example/Model.cpp")
-target_link_libraries(example PRIVATE MesmerizeRenderer)
-target_link_libraries(MesmerizeRenderer PUBLIC assimp::assimp)
+find_package(assimp CONFIG)
+add_executable (exampleModel "example/modelLoading/main.cpp" "example/modelLoading/Model.cpp")
+target_link_libraries(exampleModel PRIVATE MesmerizeRenderer)
+target_link_libraries(exampleModel PUBLIC assimp::assimp)
+
+
+add_executable (exampleTessalization "example/tessalization/main.cpp")
+target_link_libraries(exampleTessalization PRIVATE MesmerizeRenderer)

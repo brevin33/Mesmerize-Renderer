@@ -373,20 +373,20 @@ namespace MZ {
         return i;
     }
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t maxNumberOfMaterial, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues,
-        VertexValueType* InstanceTypes, uint32_t numInstanceTypes) {
-        return createShader(vertShaderPath, fragShaderPath, "", "", maxNumberOfMaterial, numTextures, numBuffers, VertexValues, numVertexValues, InstanceTypes, numInstanceTypes);
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, uint32_t maxNumberOfMaterial, ShaderStages* textureAccess, uint32_t numTextures, ShaderStages* bufferAccess, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues,
+        VertexValueType* InstanceTypes, uint32_t numInstanceTypes, CullMode cullMode) {
+        return createShader(vertShaderPath, fragShaderPath, "", "", maxNumberOfMaterial, textureAccess,numTextures, bufferAccess, numBuffers, VertexValues, numVertexValues, InstanceTypes, numInstanceTypes, cullMode);
     }
 
-    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, std::string tessalizationControlShaderPath, std::string tessalizationEvaluationShaderPath, uint32_t maxNumberOfMaterial, uint32_t numTextures, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues,
-        VertexValueType* InstanceTypes, uint32_t numInstanceTypes)
+    ShaderID createShader(std::string vertShaderPath, std::string fragShaderPath, std::string tessalizationControlShaderPath, std::string tessalizationEvaluationShaderPath, uint32_t maxNumberOfMaterial, ShaderStages* textureAccess, uint32_t numTextures,
+        ShaderStages* bufferAccess, uint32_t numBuffers, VertexValueType* VertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes, CullMode cullMode)
     {
         ShaderID i = getNewShaderID();
 
         createDescriptorPool(shaderDescriptorPools[i], maxNumberOfMaterial, numTextures, numBuffers,0,0, false, false);
-        createDescriptorSetLayout(shaderDescriptorSetLayouts[i], numTextures, numBuffers);
+        createDescriptorSetLayout(shaderDescriptorSetLayouts[i], textureAccess, numTextures, bufferAccess, numBuffers);
         createGraphicsPipline(vertShaderPath, fragShaderPath, shaderPipelineLayouts[i], shaderGraphicsPipelines[i], shaderDescriptorSetLayouts[i], VertexValues, numVertexValues, InstanceTypes, numInstanceTypes, 
-            tessalizationControlShaderPath, tessalizationEvaluationShaderPath);
+            tessalizationControlShaderPath, tessalizationEvaluationShaderPath, cullMode);
 
         return i;
     }
@@ -1483,7 +1483,7 @@ namespace MZ {
 
 
     void createGraphicsPipline(std::string vertShaderPath, std::string fragShaderPath, VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline, VkDescriptorSetLayout& descriptorSetLayout, VertexValueType* vertexValues, uint32_t numVertexValues, VertexValueType* InstanceTypes, uint32_t numInstanceTypes,
-        std::string tessContorlShaderPath, std::string tessEvaluationShaderPath)
+        std::string tessContorlShaderPath, std::string tessEvaluationShaderPath, CullMode cullMode)
     {
         auto vertShaderCode = readFile(vertShaderPath);
         auto fragShaderCode = readFile(fragShaderPath);
@@ -1516,21 +1516,21 @@ namespace MZ {
             tessConShaderModule = createShaderModule(tessControlShaderCode);
             tessEvalShaderModule = createShaderModule(tessEvalShaderCode);
 
-            vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-            vertShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
-            vertShaderStageInfo.module = tessConShaderModule;
-            vertShaderStageInfo.pName = "main";
+            tessConShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            tessConShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+            tessConShaderStageInfo.module = tessConShaderModule;
+            tessConShaderStageInfo.pName = "main";
 
-            fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-            fragShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
-            fragShaderStageInfo.module = tessEvalShaderModule;
-            fragShaderStageInfo.pName = "main";
+            tessEvalShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            tessEvalShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+            tessEvalShaderStageInfo.module = tessEvalShaderModule;
+            tessEvalShaderStageInfo.pName = "main";
 
 
             pipelineTessellationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
             pipelineTessellationStateCreateInfo.pNext = nullptr;
             pipelineTessellationStateCreateInfo.flags = 0;
-            pipelineTessellationStateCreateInfo.patchControlPoints = 3;
+            pipelineTessellationStateCreateInfo.patchControlPoints = 4;
         }
 
         VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo,  tessConShaderStageInfo, tessEvalShaderStageInfo };
@@ -1554,7 +1554,7 @@ namespace MZ {
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        inputAssembly.topology = tessContorlShaderPath == "" ? VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST : VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
         inputAssembly.primitiveRestartEnable = VK_FALSE;
 
         VkPipelineViewportStateCreateInfo viewportState{};
@@ -1568,7 +1568,7 @@ namespace MZ {
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizer.cullMode = cullMode;
         rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -1642,6 +1642,11 @@ namespace MZ {
 
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
+        if (tessEvaluationShaderPath != "")
+        {
+            vkDestroyShaderModule(device, tessConShaderModule, nullptr);
+            vkDestroyShaderModule(device, tessEvalShaderModule, nullptr);
+        }
     }
 
     void createDefferedDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures, uint32_t numBuffers)
@@ -1690,7 +1695,7 @@ namespace MZ {
         }
     }
 
-    void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, int numTextures, uint32_t numBuffers)
+    void createDescriptorSetLayout(VkDescriptorSetLayout& descriptorSetLayout, ShaderStages* textureAccess, int numTextures, ShaderStages* bufferAccess, uint32_t numBuffers)
     {
         uint32_t binding = 0;
 
@@ -1702,7 +1707,7 @@ namespace MZ {
             bindings[binding].descriptorCount = 1;
             bindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             bindings[binding].pImmutableSamplers = nullptr;
-            bindings[binding].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+            bindings[binding].stageFlags = bufferAccess[i];
             binding++;
         }
 
@@ -1712,7 +1717,7 @@ namespace MZ {
             bindings[binding].descriptorCount = 1;
             bindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             bindings[binding].pImmutableSamplers = nullptr;
-            bindings[binding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            bindings[binding].stageFlags = textureAccess[i];
             binding++;
         }
 
@@ -2618,6 +2623,7 @@ namespace MZ {
 
         VkPhysicalDeviceFeatures deviceFeatures{};
         deviceFeatures.samplerAnisotropy = VK_TRUE;
+        deviceFeatures.tessellationShader = VK_TRUE;
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -2723,7 +2729,6 @@ namespace MZ {
         QueueFamilyIndices indices = findQueueFamilies(device);
 
         bool extensionsSupported = checkDeviceExtensionSupport(device);
-
         bool swapChainAdequate = false;
         if (extensionsSupported) {
             SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
@@ -2733,7 +2738,7 @@ namespace MZ {
         VkPhysicalDeviceFeatures supportedFeatures;
         vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-        return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
+        return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy && supportedFeatures.tessellationShader;
     }
 
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
