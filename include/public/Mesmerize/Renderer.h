@@ -96,7 +96,8 @@ namespace MZ{
     /// Call once then this compute shader will be called every frame
     /// </summary>
     ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues,
-        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer = false);
+        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, TextureID* storageTexture, uint32_t numStorageTexture, bool hasDrawCommandBuffer);
+
 
     /// <summary>
     /// Material defines the shader as well as all binding related to it

@@ -348,7 +348,7 @@ namespace MZ {
     }
 
 
-    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer){
+    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, TextureID* storageTexture, uint32_t numStorageTexture, bool hasDrawCommandBuffer){
         ComputeID i = getNewComputeID();
         Compute compute;
         compute.x = xDispatch;
@@ -357,7 +357,7 @@ namespace MZ {
         compute.shaderID = computeShader;
         compute.shouldRun = true;
         
-        createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, uniformBuffers, numUniformBuffers, storageUniforms, numStorageUniforms, storageVertex, numStorageVertex, storageIndex, numStorageIndex, hasDrawCommandBuffer, false);
+        createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, uniformBuffers, numUniformBuffers, storageUniforms, numStorageUniforms, storageVertex, numStorageVertex, storageIndex, numStorageIndex, storageTexture, numStorageTexture, hasDrawCommandBuffer, false);
 
         computes[i] = compute;
         return i;
@@ -379,7 +379,7 @@ namespace MZ {
         createDescriptorPool(defferedDescriptorPool, 1, numTextureIDs, numBuffers, 0, 0, false, true);
         createDefferedDescriptorSetLayout(defferedDescriptorSetLayout, numTextureIDs, numBuffers);
         createDefferdGraphicsPipline(fragShader);
-        createDescriptorSets(defferedDescriptorSets, defferedDescriptorPool, defferedDescriptorSetLayout, textureIDs, numTextureIDs, bufferIDs, numBuffers, nullptr, 0, nullptr, 0, nullptr, 0, false, true);
+        createDescriptorSets(defferedDescriptorSets, defferedDescriptorPool, defferedDescriptorSetLayout, textureIDs, numTextureIDs, bufferIDs, numBuffers, nullptr, 0, nullptr, 0, nullptr, 0, nullptr, 0, false, true);
     }
 
     MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers){
@@ -388,7 +388,7 @@ namespace MZ {
         materialDescriptorSets.resize(i+1);
 
         materialShaderIDs[i] = shaderID;
-        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers, nullptr, 0, nullptr, 0, nullptr, 0, false, false);
+        createDescriptorSets(materialDescriptorSets[i], shaderDescriptorPools[shaderID], shaderDescriptorSetLayouts[shaderID], textureIDs, numTextureIDs, bufferIDs,  numBuffers, nullptr, 0, nullptr, 0, nullptr, 0, nullptr, 0, false, false);
 
         return i;
     }
@@ -1223,7 +1223,7 @@ namespace MZ {
     }
 
     void createDescriptorSets(std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT>& descriptorSets, VkDescriptorPool& descriptorPool, VkDescriptorSetLayout& descriptorSetLayout, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers,
-        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, bool hasDrawCommandBuffer,
+        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, TextureID* storageTextureIDs, uint32_t numstorageTextures, bool hasDrawCommandBuffer,
         bool isDefferedShader)
     {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
@@ -1290,6 +1290,17 @@ namespace MZ {
                 storageIndexBufferInfo[i+1].range = indexBuffersSize[storageIndex[i / 2]];
             }
             
+            std::vector<VkDescriptorImageInfo> storageImageInfo(numstorageTextures * 2);
+            for (size_t i = 0; i < storageImageInfo.size(); i += 2)
+            {
+                storageImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+                storageImageInfo[i].imageView = textureImageViews[textureIDs[i/2]][lastFrame];
+                storageImageInfo[i].sampler = imageSampler;
+                storageImageInfo[i + 1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+                storageImageInfo[i + 1].imageView = textureImageViews[textureIDs[i/2]][j];
+                storageImageInfo[i + 1].sampler = imageSampler;
+            }
+
             std::array<VkDescriptorBufferInfo,2> drawBufferInfo;
 
             if (hasDrawCommandBuffer) {
@@ -1375,6 +1386,18 @@ namespace MZ {
                 descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 descriptorWrites[dstBinding].descriptorCount = 1;
                 descriptorWrites[dstBinding].pBufferInfo = &storageIndexBufferInfo[i];
+                dstBinding++;
+            }
+
+            for (size_t i = 0; i < storageImageInfo.size(); i++)
+            {
+                descriptorWrites[dstBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                descriptorWrites[dstBinding].dstSet = descriptorSets[j];
+                descriptorWrites[dstBinding].dstBinding = dstBinding;
+                descriptorWrites[dstBinding].dstArrayElement = 0;
+                descriptorWrites[dstBinding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                descriptorWrites[dstBinding].descriptorCount = 1;
+                descriptorWrites[dstBinding].pImageInfo = &storageImageInfo[i];
                 dstBinding++;
             }
 
