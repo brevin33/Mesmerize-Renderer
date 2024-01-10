@@ -135,10 +135,12 @@ namespace MZ {
     std::vector<UniformBufferID> mutGPUUniformBuffers;
     std::vector<VertexBufferID> mutGPUVertexBuffers;
     std::vector<IndexBufferID> mutGPUIndexBuffers;
+    std::vector<TextureID> mutGPUTextures;
 
     std::vector<UniformBufferID> constUniformBuffers;
     std::vector<VertexBufferID> constVertexBuffers;
     std::vector<IndexBufferID> constIndexBuffers;
+    std::vector<TextureID> constTextures;
 
     // should index by RenderObjectID
     struct RenderObject {
@@ -206,9 +208,9 @@ namespace MZ {
     std::vector<VkDescriptorPool> shaderDescriptorPools;
 
     // should index by TextureID
-    std::vector<VkImage> textureImages;
-    std::vector<VmaAllocation> textureImageMemorys;
-    std::vector<VkImageView> textureImageViews;
+    std::vector<std::array<VkImage,2>> textureImages;
+    std::vector<std::array<VmaAllocation,2>> textureImageMemorys;
+    std::vector<std::array<VkImageView,2>> textureImageViews;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -230,7 +232,7 @@ namespace MZ {
 
     void createTextureSampler(VkSampler& textureSampler);
         
-    void createTextureImage(std::string filepath, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView);
+    void createTextureImage(void* imageData, uint32_t texWidth, uint32_t texHeight, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView, bool createMipMaps, ImageFormat imageFormat, bool gpuSide);
 
     void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 

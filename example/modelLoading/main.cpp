@@ -55,6 +55,8 @@ void main() {
 
 	MZ::setDefferedShader("../../../shaders/defferedFrag.spv", nullptr, 0, nullptr, 0);
 
+	MZ::TextureID test =  MZ::createGPUMutTexture(2000, 2000, MZ::IFFloat2);
+
 	//loading shader
 	std::vector<MZ::VertexValueType> vertValues = Vertex::getVertexValueTypes();
 	MZ::VertexValueType instanceValue = MZ::VTfloat4x4;
@@ -77,7 +79,7 @@ void main() {
 				backpackTextures[i].push_back(pathToTexture[path]);
 				continue;
 			}
-			MZ::TextureID textureID = MZ::createTexture(path);
+			MZ::TextureID textureID = MZ::createConstTexture(path);
 			pathToTexture[path] = textureID;
 			backpackTextures[i].push_back(textureID);
 		}
@@ -129,7 +131,7 @@ void main() {
 
 		processInput(window);
 		glm::mat4 view = camera.GetViewMatrix();
-		glm::mat4 proj = glm::perspective(glm::radians(45.0f), MZ::getRenderWidth() / (float)MZ::getRenderHeight(), 0.1f, 10.0f);
+		glm::mat4 proj = glm::perspective(glm::radians(45.0f), MZ::getRenderWidth() / (float)MZ::getRenderHeight(), 0.1f, 100.0f);
 		proj[1][1] *= -1;
 		glm::mat4 cambuf[] = { view, proj };
 		MZ::updateCPUMutUniformBuffer(MZ::mainCameraBuffer, cambuf, sizeof(glm::mat4) * 2, 0);

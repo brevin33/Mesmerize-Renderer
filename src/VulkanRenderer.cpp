@@ -62,12 +62,24 @@ namespace MZ {
             }
         }
 
-        for (TextureID i = (TextureID)0; i < textureImages.size(); i++)
+        for (size_t l = 0; l < constTextures.size(); l++)
         {
+            TextureID i = constTextures[l];
             if (std::find(unfilledTextureIDs.begin(), unfilledTextureIDs.end(), i) == unfilledTextureIDs.end()) {
-                deleteResource(i);
+                deleteResourceConst(i);
+                l--;
             }
         }
+
+        for (size_t l = 0; l < mutGPUTextures.size(); l++)
+        {
+            TextureID i = mutGPUTextures[l];
+            if (std::find(unfilledTextureIDs.begin(), unfilledTextureIDs.end(), i) == unfilledTextureIDs.end()) {
+                deleteResourceGPU(i);
+                l--;
+            }
+        }
+
 
         vkDestroySampler(device, imageSampler, nullptr);
 
@@ -247,6 +259,19 @@ namespace MZ {
             vmaDestroyBuffer(allocator, indexBuffers[i][j], indexBufferMemorys[i][j]);
         }
     }
+    void deleteResourceConst(TextureID i) {
+        unfilledTextureIDs.push_back(i);
+        vmaDestroyImage(allocator, textureImages[i][0], textureImageMemorys[i][0]);
+        vkDestroyImageView(device, textureImageViews[i][0], nullptr);
+    }
+    void deleteResourceGPU(TextureID i) {
+        unfilledTextureIDs.push_back(i);
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            vmaDestroyImage(allocator, textureImages[i][j], textureImageMemorys[i][j]);
+            vkDestroyImageView(device, textureImageViews[i][j], nullptr);
+        }
+    }
     void deleteResource(RenderObjectID i) {
         unfilledRenderObjectIDs.push_back(i);
         renderObjects[i].shouldDraw = false;
@@ -269,11 +294,6 @@ namespace MZ {
         vkDestroyPipelineLayout(device, computePipelineLayout[i], nullptr);
         vkDestroyDescriptorSetLayout(device, computeDescriptorSetLayout[i], nullptr);
         vkDestroyDescriptorPool(device, computeDescriptorPool[i], nullptr);
-    }
-    void deleteResource(TextureID i) {
-        unfilledTextureIDs.push_back(i);
-        vmaDestroyImage(allocator, textureImages[i], textureImageMemorys[i]);
-        vkDestroyImageView(device, textureImageViews[i], nullptr);
     }
     void deleteResource(MaterialID i) {
         unfilledMaterialIDs.push_back(i);
@@ -544,11 +564,38 @@ namespace MZ {
         return i;
     }
 
-
-    TextureID createTexture(std::string textureFilepath) {
+    TextureID createGPUMutTexture(uint32_t width, uint32_t height, ImageFormat imageFormat) {
         TextureID i = getNewTextrueID();
 
-        createTextureImage(textureFilepath, textureImageMemorys[i], textureImages[i], textureImageViews[i]);
+        for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+            createImage(width, height, 1, VK_SAMPLE_COUNT_1_BIT, (VkFormat)imageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImages[i][j], textureImageMemorys[i][j]);
+            textureImageViews[i][j] = createImageView(textureImages[i][j], (VkFormat)imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+        }
+        mutGPUTextures.push_back(i);
+        return i;
+    }
+
+    TextureID createConstTexture(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat) {
+        TextureID i = getNewTextrueID();
+
+        createTextureImage(data, width, height, textureImageMemorys[i][0], textureImages[i][0], textureImageViews[i][0], true, imageFormat, false);
+        for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++)
+        {
+            textureImageMemorys[i][j] = textureImageMemorys[i][0];
+            textureImages[i][j] = textureImages[i][0];
+            textureImageViews[i][j] = textureImageViews[i][0];
+        }
+        constTextures.push_back(i);
+
+        return i;
+    }
+
+    TextureID createConstTexture(std::string textureFilepath) {
+        int texWidth, texHeight, texChannels;
+        stbi_uc* pixels = stbi_load(textureFilepath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+
+        TextureID i = createConstTexture(pixels, texWidth, texHeight, IFSRGB8);
+        stbi_image_free(pixels);
         return i;
     }
 
@@ -873,13 +920,29 @@ namespace MZ {
     }
 
 
-    void createTextureImage(std::string filepath, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView) {
-        int texWidth, texHeight, texChannels;
-        stbi_uc* pixels = stbi_load(filepath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-        VkDeviceSize imageSize = texWidth * texHeight * 4;
-        uint32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+    uint32_t imageFormatSize(ImageFormat imageFormat) {
+        switch (imageFormat)
+        {
+        case MZ::IFSRGB8:
+            return 4;
+            break;
+        case MZ::IFFloat2:
+            return sizeof(glm::vec2);
+            break;
+        case MZ::IFFloat:
+            return sizeof(float);
+        default:
+            break;
+        }
 
-        if (!pixels) {
+    }
+
+
+    void createTextureImage(void* imageData, uint32_t texWidth, uint32_t texHeight, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView, bool createMipMaps, ImageFormat imageFormat, bool gpuSide) {
+        VkDeviceSize imageSize = texWidth * texHeight * imageFormatSize(imageFormat);
+        uint32_t mipLevels = createMipMaps ? static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1 : 1;
+
+        if (!imageData) {
             throw std::runtime_error("failed to load texture image!");
         }
 
@@ -890,21 +953,21 @@ namespace MZ {
 
         void* data;
         vmaMapMemory(allocator, stagingBufferMemory, &data);
-        memcpy(data, pixels, static_cast<size_t>(imageSize));
+        memcpy(data, imageData, static_cast<size_t>(imageSize));
         vmaUnmapMemory(allocator, stagingBufferMemory);
 
-        stbi_image_free(pixels);
+        VkImageUsageFlagBits extraUsage = gpuSide ? VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlagBits)0;
 
-        createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+        createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, (VkFormat)imageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | extraUsage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 
-        transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
+        transitionImageLayout(textureImage, (VkFormat)imageFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
         copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 
         vmaDestroyBuffer(allocator,stagingBuffer,stagingBufferMemory);
 
-        generateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, mipLevels);
+        if(createMipMaps) generateMipmaps(textureImage, (VkFormat)imageFormat, texWidth, texHeight, mipLevels);
 
-        textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+        textureImageView = createImageView(textureImage, (VkFormat)imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
     }
 
     void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
@@ -1190,7 +1253,7 @@ namespace MZ {
             for (size_t i = 0; i < numTextureIDs; i++)
             {
                 imageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                imageInfo[i].imageView = textureImageViews[textureIDs[i]];
+                imageInfo[i].imageView = textureImageViews[textureIDs[i]][j];
                 imageInfo[i].sampler = imageSampler;
             }
 

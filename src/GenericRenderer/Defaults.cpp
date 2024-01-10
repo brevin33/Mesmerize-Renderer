@@ -21,7 +21,7 @@ namespace MZ {
 
 	void drawFrame() {
 		glm::mat4* camBuf = (glm::mat4*)getCPUMutUniformBufferData(mainCameraBuffer);
-		updateCameraFullcrumBuffer(camBuf[0] * camBuf[1], mainCameraFullcrumBuffer);
+		updateCameraFullcrumBuffer(camBuf[1] * camBuf[0], mainCameraFullcrumBuffer);
 		renderFrame();
 	}
 

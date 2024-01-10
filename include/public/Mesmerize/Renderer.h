@@ -125,10 +125,18 @@ namespace MZ{
     ComputeShaderID createComputeShader(std::string computeShaderPath, uint32_t maxNumberOfComputes, uint32_t numUniformBuffers, uint32_t numStaticTextures, uint32_t numStorageBuffers,
         uint32_t numStorageTextues, bool hasDrawCommandBuffer = false);
 
+
+    enum ImageFormat {
+        IFSRGB8 = VK_FORMAT_R8G8B8A8_SRGB,
+        IFFloat2 = VK_FORMAT_R32G32_SFLOAT,
+        IFFloat = VK_FORMAT_R32_SFLOAT,
+    };
     /// <summary>
     /// loads a texture to be used by other parts of the renderer
     /// </summary>
-    TextureID createTexture(std::string textureFilepath);
+    TextureID createConstTexture(std::string textureFilepath);
+    TextureID createConstTexture(void* data ,uint32_t width, uint32_t height, ImageFormat imageFormat);
+    TextureID createGPUMutTexture(uint32_t width, uint32_t height, ImageFormat imageFormat);
 
     /// <summary>
     /// a vertex buffer can hold vertex data or instance data. you must specify the types of mutability by calling the right constructor
@@ -168,7 +176,8 @@ namespace MZ{
     void deleteResource(ComputeID id);
     void deleteResource(ShaderID id);
     void deleteResource(ComputeShaderID id);
-    void deleteResource(TextureID id);
+    void deleteResourceConst(TextureID id);
+    void deleteResourceGPU(TextureID id);
     void deleteResource(MaterialID id);
 
 

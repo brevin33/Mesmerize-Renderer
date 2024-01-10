@@ -39,14 +39,14 @@ void main() {
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Ocean Rendering", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Tessalization Example", nullptr, nullptr);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	glfwSetCursorPosCallback(window, mouse_callback);
 	MZ::setup(window, 1, "../../../");
 	MZ::setDefferedShader("../../../shaders/defferedFrag.spv", nullptr, 0, nullptr, 0);
 
-	hightMap = createTexture("../../../textures/iceland_heightmap.png");
+	hightMap = createConstTexture("../../../textures/iceland_heightmap.png");
 
 	addTessalizedPlane();
 
@@ -107,13 +107,13 @@ void addTessalizedPlane() {
 	IndexBufferID planeIndexBuffer = createConstIndexBuffer(indices.data(), indices.size() * sizeof(uint32_t));
 	ShaderStages stages[2] = {SSTessCon | SSTessEval, SSTessCon | SSTessEval };
 	ShaderStages stagesTexture[1] = {SSTessEval};
-	ShaderID oceanShader = createShader("../../../shaders/tessalizationVert.spv", "../../../shaders/tessalizationFrag.spv", "../../../shaders/tessalizationTesc.spv", 
+	ShaderID tessShader = createShader("../../../shaders/tessalizationVert.spv", "../../../shaders/tessalizationFrag.spv", "../../../shaders/tessalizationTesc.spv", 
 		"../../../shaders/tessalizationTese.spv", 1, stagesTexture, 1, stages ,2, Vertex::getVertexValues().data(), Vertex::getVertexValues().size(), nullptr, 0, FrontCull);
 	glm::mat4 model = glm::mat4(1);
 	UniformBufferID modelBuffer = createCPUMutUniformBuffer(&model, sizeof(glm::mat4), sizeof(glm::mat4));
-	std::array<UniformBufferID, 2> oceanUniformBuffers = { mainCameraBuffer , modelBuffer };
-	MaterialID oceanMaterial = createMaterial(oceanShader, &hightMap, 1, oceanUniformBuffers.data(), oceanUniformBuffers.size());
-	RenderObjectID ocean = addRenderObject(oceanMaterial, planeVertexBuffer, planeIndexBuffer);
+	std::array<UniformBufferID, 2> tessUniformBuffers = { mainCameraBuffer , modelBuffer };
+	MaterialID tessMaterial = createMaterial(tessShader, &hightMap, 1, tessUniformBuffers.data(), tessUniformBuffers.size());
+	RenderObjectID terrain = addRenderObject(tessMaterial, planeVertexBuffer, planeIndexBuffer);
 }
 
 
