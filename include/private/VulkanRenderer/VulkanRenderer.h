@@ -211,6 +211,7 @@ namespace MZ {
     std::vector<std::array<VkImage,2>> textureImages;
     std::vector<std::array<VmaAllocation,2>> textureImageMemorys;
     std::vector<std::array<VkImageView,2>> textureImageViews;
+    std::vector<VkImageLayout> textureImageLayout;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -232,11 +233,11 @@ namespace MZ {
 
     void createTextureSampler(VkSampler& textureSampler);
         
-    void createTextureImage(void* imageData, uint32_t texWidth, uint32_t texHeight, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView, bool createMipMaps, ImageFormat imageFormat, bool gpuSide);
+    void createTextureImage(void* imageData, uint32_t texWidth, uint32_t texHeight, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView, bool createMipMaps, ImageFormat imageFormat, bool gpuSide, VkImageLayout finalLayout);
 
     void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 
-    void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
+    void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageLayout finalLayout);
 
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1);
 

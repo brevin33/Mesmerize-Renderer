@@ -55,8 +55,6 @@ void main() {
 
 	MZ::setDefferedShader("../../../shaders/defferedFrag.spv", nullptr, 0, nullptr, 0);
 
-	MZ::TextureID test =  MZ::createGPUMutTexture(2000, 2000, MZ::IFFloat2);
-
 	//loading shader
 	std::vector<MZ::VertexValueType> vertValues = Vertex::getVertexValueTypes();
 	MZ::VertexValueType instanceValue = MZ::VTfloat4x4;

@@ -566,10 +566,10 @@ namespace MZ {
 
     TextureID createGPUMutTexture(uint32_t width, uint32_t height, ImageFormat imageFormat) {
         TextureID i = getNewTextrueID();
-
+        textureImageLayout[i] = VK_IMAGE_LAYOUT_GENERAL;
         void* data = malloc(width * height * imageFormatSize(imageFormat));
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-            createTextureImage(data, width, height, textureImageMemorys[i][j], textureImages[i][j], textureImageViews[i][j], false, imageFormat, true);
+            createTextureImage(data, width, height, textureImageMemorys[i][j], textureImages[i][j], textureImageViews[i][j], false, imageFormat, true, VK_IMAGE_LAYOUT_GENERAL);
         }
         free(data);
         mutGPUTextures.push_back(i);
@@ -578,8 +578,8 @@ namespace MZ {
 
     TextureID createConstTexture(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat) {
         TextureID i = getNewTextrueID();
-
-        createTextureImage(data, width, height, textureImageMemorys[i][0], textureImages[i][0], textureImageViews[i][0], true, imageFormat, false);
+        textureImageLayout[i] = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        createTextureImage(data, width, height, textureImageMemorys[i][0], textureImages[i][0], textureImageViews[i][0], true, imageFormat, false, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
             textureImageMemorys[i][j] = textureImageMemorys[i][0];
@@ -939,7 +939,7 @@ namespace MZ {
     }
 
 
-    void createTextureImage(void* imageData, uint32_t texWidth, uint32_t texHeight, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView, bool createMipMaps, ImageFormat imageFormat, bool gpuSide) {
+    void createTextureImage(void* imageData, uint32_t texWidth, uint32_t texHeight, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView, bool createMipMaps, ImageFormat imageFormat, bool gpuSide, VkImageLayout finalLayout) {
         VkDeviceSize imageSize = texWidth * texHeight * imageFormatSize(imageFormat);
         uint32_t mipLevels = createMipMaps ? static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1 : 1;
 
@@ -966,12 +966,12 @@ namespace MZ {
 
         vmaDestroyBuffer(allocator,stagingBuffer,stagingBufferMemory);
 
-        if(createMipMaps) generateMipmaps(textureImage, (VkFormat)imageFormat, texWidth, texHeight, mipLevels);
+        generateMipmaps(textureImage, (VkFormat)imageFormat, texWidth, texHeight, mipLevels, finalLayout);
 
         textureImageView = createImageView(textureImage, (VkFormat)imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
     }
 
-    void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
+    void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageLayout finalLayout) {
         // Check if image format supports linear blitting
         VkFormatProperties formatProperties;
         vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
@@ -1029,7 +1029,7 @@ namespace MZ {
                 VK_FILTER_LINEAR);
 
             barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.newLayout = finalLayout;
             barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -1045,7 +1045,7 @@ namespace MZ {
 
         barrier.subresourceRange.baseMipLevel = mipLevels - 1;
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.newLayout = finalLayout;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -1253,7 +1253,7 @@ namespace MZ {
             std::vector<VkDescriptorImageInfo> imageInfo(numTextureIDs);
             for (size_t i = 0; i < numTextureIDs; i++)
             {
-                imageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                imageInfo[i].imageLayout = textureImageLayout[textureIDs[i]];
                 imageInfo[i].imageView = textureImageViews[textureIDs[i]][j];
                 imageInfo[i].sampler = imageSampler;
             }
@@ -1294,10 +1294,10 @@ namespace MZ {
             std::vector<VkDescriptorImageInfo> storageImageInfo(numstorageTextures * 2);
             for (size_t i = 0; i < storageImageInfo.size(); i += 2)
             {
-                storageImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+                storageImageInfo[i].imageLayout = textureImageLayout[storageTextureIDs[i / 2]];
                 storageImageInfo[i].imageView = textureImageViews[storageTextureIDs[i/2]][lastFrame];
                 storageImageInfo[i].sampler = imageSampler;
-                storageImageInfo[i + 1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+                storageImageInfo[i + 1].imageLayout = textureImageLayout[storageTextureIDs[i / 2]];
                 storageImageInfo[i + 1].imageView = textureImageViews[storageTextureIDs[i/2]][j];
                 storageImageInfo[i + 1].sampler = imageSampler;
             }
@@ -2089,6 +2089,7 @@ namespace MZ {
         textureImages.resize(i + 1);
         textureImageMemorys.resize(i + 1);
         textureImageViews.resize(i + 1);
+        textureImageLayout.resize(i + 1);
         return i;
     }
 
