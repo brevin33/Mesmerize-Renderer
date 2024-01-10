@@ -289,6 +289,8 @@ namespace MZ {
 
     VkShaderModule createShaderModule(const std::vector<char>& code);
 
+    uint32_t imageFormatSize(ImageFormat imageFormat);
+
     ComputeID getNewComputeID();
 
     RenderObjectID getNewRenderObjectID();

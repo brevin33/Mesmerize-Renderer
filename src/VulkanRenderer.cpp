@@ -567,10 +567,11 @@ namespace MZ {
     TextureID createGPUMutTexture(uint32_t width, uint32_t height, ImageFormat imageFormat) {
         TextureID i = getNewTextrueID();
 
+        void* data = malloc(width * height * imageFormatSize(imageFormat));
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-            createImage(width, height, 1, VK_SAMPLE_COUNT_1_BIT, (VkFormat)imageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImages[i][j], textureImageMemorys[i][j]);
-            textureImageViews[i][j] = createImageView(textureImages[i][j], (VkFormat)imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+            createTextureImage(data, width, height, textureImageMemorys[i][j], textureImages[i][j], textureImageViews[i][j], false, imageFormat, true);
         }
+        free(data);
         mutGPUTextures.push_back(i);
         return i;
     }
@@ -1294,10 +1295,10 @@ namespace MZ {
             for (size_t i = 0; i < storageImageInfo.size(); i += 2)
             {
                 storageImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-                storageImageInfo[i].imageView = textureImageViews[textureIDs[i/2]][lastFrame];
+                storageImageInfo[i].imageView = textureImageViews[storageTextureIDs[i/2]][lastFrame];
                 storageImageInfo[i].sampler = imageSampler;
                 storageImageInfo[i + 1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-                storageImageInfo[i + 1].imageView = textureImageViews[textureIDs[i/2]][j];
+                storageImageInfo[i + 1].imageView = textureImageViews[storageTextureIDs[i/2]][j];
                 storageImageInfo[i + 1].sampler = imageSampler;
             }
 
@@ -1325,7 +1326,7 @@ namespace MZ {
                 defferedImageInfo[colorImageViewMsaaOut.size()].sampler = imageSampler;
             }
 
-            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs + numStorageUniforms * 2 + numStorageIndex * 2 + numStorageVertex * 2 + (int)hasDrawCommandBuffer * 2 + (int)isDefferedShader * 2);
+            std::vector<VkWriteDescriptorSet> descriptorWrites(numBuffers +  numTextureIDs + numStorageUniforms * 2 + numStorageIndex * 2 + numstorageTextures * 2 + numStorageVertex * 2 + (int)hasDrawCommandBuffer * 2 + (int)isDefferedShader * 2);
 
             int dstBinding = 0;
 
