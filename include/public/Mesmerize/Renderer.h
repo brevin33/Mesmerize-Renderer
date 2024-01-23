@@ -95,8 +95,9 @@ namespace MZ{
     /// <summary>
     /// Call once then this compute shader will be called every frame
     /// </summary>
-    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, TextureID* textures, uint32_t numTextues,
-        UniformBufferID* storageUniforms, uint32_t numStorageUniforms, VertexBufferID* storageVertex, uint32_t numStorageVertex, IndexBufferID* storageIndex, uint32_t numStorageIndex, TextureID* storageTexture, uint32_t numStorageTexture, bool hasDrawCommandBuffer);
+    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers,
+        TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, bool* storageUniformsLastFrame, uint32_t numStorageUniforms, VertexBufferID* storageVertex, bool* storageVertexLastFrame,
+        uint32_t numStorageVertex, IndexBufferID* storageIndex, bool* storageIndexLastFrame, uint32_t numStorageIndex, TextureID* storageTexture, bool* storageTextureLastFrame, uint32_t numStorageTexture, bool hasDrawCommandBuffer);
 
 
     /// <summary>
@@ -138,47 +139,65 @@ namespace MZ{
     TextureID createConstTexture(std::string textureFilepath);
     TextureID createConstTexture(void* data ,uint32_t width, uint32_t height, ImageFormat imageFormat);
     TextureID createGPUMutTexture(uint32_t width, uint32_t height, ImageFormat imageFormat);
+    TextureID createGPUMutTextureSingle(uint32_t width, uint32_t height, ImageFormat imageFormat);
+
 
     /// <summary>
     /// a vertex buffer can hold vertex data or instance data. you must specify the types of mutability by calling the right constructor
     /// </summary>
     VertexBufferID createConstVertexBuffer(void* vertices, uint32_t numVertices,uint64_t bufferSize);
     VertexBufferID createCPUMutVertexBuffer(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize);
+    VertexBufferID createCPUMutVertexBufferSingle(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize);
     VertexBufferID createGPUMutVertexBuffer(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize);
+    VertexBufferID createGPUMutVertexBufferSingle(void* vertices, uint32_t numVertices, uint32_t vertexSize, uint64_t bufferSize);
+
 
     /// <summary>
     /// a index buffer can hold indexs connecting vertices. you must specify the types of mutability by calling the right constructor
     /// </summary>
     IndexBufferID createConstIndexBuffer(void* indices, uint64_t bufferSize);
     IndexBufferID createCPUMutIndexBuffer(void* indices, uint32_t numIndices, uint64_t bufferSize);
+    IndexBufferID createCPUMutIndexBufferSingle(void* indices, uint32_t numIndices, uint64_t bufferSize);
     IndexBufferID createGPUMutIndexBuffer(void* indices, uint32_t numIndices, uint64_t bufferSize);
+    IndexBufferID createGPUMutIndexBufferSingle(void* indices, uint32_t numIndices, uint64_t bufferSize);
+
 
     /// <summary>
     /// a uniform buffer can be made to pass information in to shaders. you must specify the types of mutability by calling the right constructor
     /// </summary>
     UniformBufferID createConstUniformBuffer(void* data, uint32_t bufferSize);
     UniformBufferID createCPUMutUniformBuffer(void* data, uint32_t dataSize, uint32_t bufferSize);
+    UniformBufferID createCPUMutUniformBufferSingle(void* data, uint32_t dataSize, uint32_t bufferSize);
     UniformBufferID createGPUMutUniformBuffer(void* data, uint32_t dataSize, uint32_t bufferSize);
+    UniformBufferID createGPUMutUniformBufferSingle(void* data, uint32_t dataSize, uint32_t bufferSize);
+
 
 
     /// <summary>
     /// Deletes The Resource
     /// </summary>
     void deleteResourceCPU(UniformBufferID id);
+    void deleteResourceCPUSingle(UniformBufferID id);
     void deleteResourceConst(UniformBufferID id);
     void deleteResourceGPU(UniformBufferID id);
+    void deleteResourceGPUSinlge(UniformBufferID id);
     void deleteResourceGPU(VertexBufferID id);
     void deleteResourceCPU(VertexBufferID id);
+    void deleteResourceGPUSingle(VertexBufferID id);
+    void deleteResourceCPUSingle(VertexBufferID id);
     void deleteResourceConst(VertexBufferID id);
     void deleteResourceConst(IndexBufferID id);
     void deleteResourceCPU(IndexBufferID id);
     void deleteResourceGPU(IndexBufferID id);
+    void deleteResourceCPUSingle(IndexBufferID id);
+    void deleteResourceGPUSingle(IndexBufferID id);
     void deleteResource(RenderObjectID id);
     void deleteResource(ComputeID id);
     void deleteResource(ShaderID id);
     void deleteResource(ComputeShaderID id);
     void deleteResourceConst(TextureID id);
     void deleteResourceGPU(TextureID id);
+    void deleteResourceGPUSingle(TextureID id);
     void deleteResource(MaterialID id);
 
 
