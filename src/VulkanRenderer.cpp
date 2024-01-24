@@ -1122,10 +1122,12 @@ namespace MZ {
         {
         case MZ::IFSRGB8:
             return 4;
-            break;
+        case MZ::IFFloat4:
+            return sizeof(glm::vec4);
+        case MZ::IFFloat3:
+            return sizeof(glm::vec3);
         case MZ::IFFloat2:
             return sizeof(glm::vec2);
-            break;
         case MZ::IFFloat:
             return sizeof(float);
         default:

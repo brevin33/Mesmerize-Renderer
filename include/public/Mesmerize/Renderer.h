@@ -130,6 +130,8 @@ namespace MZ{
 
     enum ImageFormat {
         IFSRGB8 = VK_FORMAT_R8G8B8A8_SRGB,
+        IFFloat4 = VK_FORMAT_R32G32B32A32_SFLOAT,
+        IFFloat3 = VK_FORMAT_R32G32B32_SFLOAT,
         IFFloat2 = VK_FORMAT_R32G32_SFLOAT,
         IFFloat = VK_FORMAT_R32_SFLOAT,
     };
