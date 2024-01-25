@@ -174,6 +174,11 @@ namespace MZ {
             vkDestroyFence(device, computeInFlightFences[i], nullptr);
         }
 
+        for (size_t i = 0; i < computestageEvents.size(); i++)
+        {
+            vkDestroyEvent(device, computestageEvents[i], nullptr);
+        }
+
         vkDestroyPipeline(device, defferedGraphicsPipeline, nullptr);
         vkDestroyPipelineLayout(device, defferedPipelineLayout, nullptr);
         vkDestroyDescriptorSetLayout(device, defferedDescriptorSetLayout, nullptr);
@@ -347,9 +352,9 @@ namespace MZ {
         renderObjects[i].shouldDraw = false;
     }
     void deleteResource(ComputeID i) {
-        unfilledComputeIDs.push_back(i);
-        computes[i].shouldRun = false;
-        vkFreeDescriptorSets(device, computeDescriptorPool[computes[i].shaderID], MAX_FRAMES_IN_FLIGHT, computes[i].descriptorSets.data());
+        unfilledComputeIDs[(i << 16) >> 16].push_back(i);
+        computes[(i << 16) >> 16][i >> 16].shouldRun = false;
+        vkFreeDescriptorSets(device, computeDescriptorPool[computes[(i << 16) >> 16][i >> 16].shaderID], MAX_FRAMES_IN_FLIGHT, computes[(i << 16) >> 16][i >> 16].descriptorSets.data());
     }
     void deleteResource(ShaderID i) {
         unfilledShaderIDs.push_back(i);
@@ -417,11 +422,10 @@ namespace MZ {
         return i;
     }
 
-
-    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers, 
+    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, uint16_t computePass, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers,
         TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, bool* storageUniformsLastFrame, uint32_t numStorageUniforms, VertexBufferID* storageVertex, bool* storageVertexLastFrame,
         uint32_t numStorageVertex, IndexBufferID* storageIndex, bool* storageIndexLastFrame, uint32_t numStorageIndex, TextureID* storageTexture, bool* storageTextureLastFrame, uint32_t numStorageTexture, bool hasDrawCommandBuffer){
-        ComputeID i = getNewComputeID();
+        ComputeID i = getNewComputeID(computePass);
         Compute compute;
         compute.x = xDispatch;
         compute.y = yDispatch;
@@ -432,7 +436,7 @@ namespace MZ {
         createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, uniformBuffers, numUniformBuffers, storageUniforms, storageUniformsLastFrame,
             numStorageUniforms, storageVertex, storageVertexLastFrame, numStorageVertex, storageIndex, storageIndexLastFrame, numStorageIndex, storageTexture, storageTextureLastFrame, numStorageTexture, hasDrawCommandBuffer, false);
 
-        computes[i] = compute;
+        computes[(i << 16) >> 16][i >> 16] = compute;
         return i;
 
     }
@@ -876,6 +880,7 @@ namespace MZ {
 
         recordComputeCommandBuffer(computeCommandBuffers[currentFrame]);
 
+
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -942,6 +947,7 @@ namespace MZ {
         for (size_t i = 0; i < renderObjects.size(); i++)
         {
             RenderObject renderObject = renderObjects[i];
+            if (!renderObject.shouldDraw) continue;
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[materialShaderIDs[renderObject.material]]);
 
             VkBuffer vertex = vertexBuffers[renderObject.vertexBuffer][renderFrame];
@@ -981,16 +987,20 @@ namespace MZ {
             throw std::runtime_error("failed to begin recording compute command buffer!");
         }
 
-        for (size_t i = 0; i < computes.size(); i++)
-        {
-            Compute compute = computes[i];
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline[compute.shaderID]);
+        for (int computePass = 0; computePass < computes.size(); computePass++) {
+            for (size_t i = 0; i < computes[computePass].size(); i++)
+            {
+                Compute compute = computes[computePass][i];
+                if (!compute.shouldRun) continue;
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline[compute.shaderID]);
 
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout[compute.shaderID], 0, 1, &compute.descriptorSets[currentFrame], 0, nullptr);
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout[compute.shaderID], 0, 1, &compute.descriptorSets[currentFrame], 0, nullptr);
 
-            vkCmdDispatch(commandBuffer, compute.x, compute.y, compute.z);
+                vkCmdDispatch(commandBuffer, compute.x, compute.y, compute.z);
+            }
+            vkCmdSetEvent(commandBuffer, computestageEvents[computePass], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+            vkCmdWaitEvents(commandBuffer, 1, &computestageEvents[computePass], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, nullptr, 0, nullptr, 0, nullptr);
         }
-
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record compute command buffer!");
         }
@@ -2152,15 +2162,28 @@ namespace MZ {
     }
 
 
-    ComputeID getNewComputeID() {
-        if (!unfilledComputeIDs.empty()) {
-            ComputeID i = unfilledComputeIDs.back();
+    ComputeID getNewComputeID(uint16_t computePass) {
+        if (unfilledComputeIDs.size() <= computePass) { 
+            int temp = unfilledComputeIDs.size();
+            unfilledComputeIDs.resize(computePass + 1);
+            computes.resize(computePass + 1);
+            computestageEvents.resize(computePass + 1);
+            for (int i = temp; i < computePass + 1; i++) {
+                VkEventCreateInfo createInfo = {};
+                createInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
+                if (vkCreateEvent(device, &createInfo, nullptr, &computestageEvents[i]) != VK_SUCCESS) {
+                    throw std::runtime_error("failed to create new stage compute stage!");
+                }
+            }
+        }
+        if (!unfilledComputeIDs[computePass].empty()) {
+            ComputeID i = unfilledComputeIDs[computePass].back();
             unfilledComputeIDs.pop_back();
             return i;
         }
-        ComputeID i = (ComputeID)computes.size();
-        computes.resize(i + 1);
-        return i;
+        ComputeID i = (ComputeID)computes[computePass].size();
+        computes[computePass].resize(i + 1);
+        return (ComputeID)((i << 16) + computePass);
     }
 
     RenderObjectID getNewRenderObjectID() {

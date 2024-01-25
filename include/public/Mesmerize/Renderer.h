@@ -16,7 +16,7 @@ namespace MZ{
     BOOST_STRONG_TYPEDEF(uint16_t, UniformBufferID);
     BOOST_STRONG_TYPEDEF(uint16_t, VertexBufferID);
     BOOST_STRONG_TYPEDEF(uint16_t, IndexBufferID);
-    BOOST_STRONG_TYPEDEF(uint16_t, ComputeShaderID);
+    BOOST_STRONG_TYPEDEF(uint32_t, ComputeShaderID);
     BOOST_STRONG_TYPEDEF(uint16_t, ComputeID);
 
     // negitive radius means no culling
@@ -95,7 +95,7 @@ namespace MZ{
     /// <summary>
     /// Call once then this compute shader will be called every frame
     /// </summary>
-    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers,
+    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, uint16_t computePass, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers,
         TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, bool* storageUniformsLastFrame, uint32_t numStorageUniforms, VertexBufferID* storageVertex, bool* storageVertexLastFrame,
         uint32_t numStorageVertex, IndexBufferID* storageIndex, bool* storageIndexLastFrame, uint32_t numStorageIndex, TextureID* storageTexture, bool* storageTextureLastFrame, uint32_t numStorageTexture, bool hasDrawCommandBuffer);
 

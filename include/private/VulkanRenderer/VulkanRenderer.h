@@ -123,10 +123,8 @@ namespace MZ {
     std::vector<UniformBufferID> unfilledUniformBufferIDs;
     std::vector<IndexBufferID> unfilledIndexBufferIDs;
     std::vector<ComputeShaderID> unfilledComputeShaderIDs;
-    std::vector<ComputeID> unfilledComputeIDs;
+    std::vector<std::vector<ComputeID>> unfilledComputeIDs;
     std::vector<RenderObjectID> unfilledRenderObjectIDs;
-
-
 
     std::vector<UniformBufferID> mutUniformBuffers;
     std::vector<VertexBufferID> mutVertexBuffers;
@@ -162,7 +160,8 @@ namespace MZ {
         uint32_t z;
         std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT> descriptorSets;
     };
-    std::vector<Compute> computes;
+    std::vector<std::vector<Compute>> computes;
+    std::vector<VkEvent> computestageEvents;
 
     //should index by ComputeShaderID
     std::vector<VkDescriptorSetLayout> computeDescriptorSetLayout;
@@ -292,7 +291,7 @@ namespace MZ {
 
     uint32_t imageFormatSize(ImageFormat imageFormat);
 
-    ComputeID getNewComputeID();
+    ComputeID getNewComputeID(uint16_t computePass);
 
     RenderObjectID getNewRenderObjectID();
 
