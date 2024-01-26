@@ -141,7 +141,9 @@ namespace MZ{
     TextureID createConstTexture(std::string textureFilepath);
     TextureID createConstTexture(void* data ,uint32_t width, uint32_t height, ImageFormat imageFormat);
     TextureID createGPUMutTexture(uint32_t width, uint32_t height, ImageFormat imageFormat);
+    TextureID createGPUMutTexture(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat);
     TextureID createGPUMutTextureSingle(uint32_t width, uint32_t height, ImageFormat imageFormat);
+    TextureID createGPUMutTextureSingle(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat);
 
 
     /// <summary>

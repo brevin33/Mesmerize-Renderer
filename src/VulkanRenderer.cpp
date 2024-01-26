@@ -750,28 +750,39 @@ namespace MZ {
     }
 
     TextureID createGPUMutTexture(uint32_t width, uint32_t height, ImageFormat imageFormat) {
+        void* data = malloc(width * height * imageFormatSize(imageFormat));
+        TextureID i = createGPUMutTexture(data, width, height, imageFormat);
+        free(data);
+        return i;
+    }
+
+    TextureID createGPUMutTexture(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat) {
         TextureID i = getNewTextrueID();
         textureImageLayout[i] = VK_IMAGE_LAYOUT_GENERAL;
-        void* data = malloc(width * height * imageFormatSize(imageFormat));
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
             createTextureImage(data, width, height, textureImageMemorys[i][j], textureImages[i][j], textureImageViews[i][j], false, imageFormat, true, VK_IMAGE_LAYOUT_GENERAL);
         }
-        free(data);
         mutGPUTextures.push_back(i);
         return i;
     }
 
+
     TextureID createGPUMutTextureSingle(uint32_t width, uint32_t height, ImageFormat imageFormat) {
+        void* data = malloc(width * height * imageFormatSize(imageFormat));
+        TextureID i = createGPUMutTextureSingle(data, width, height, imageFormat);
+        free(data);
+        return i;
+    }
+
+    TextureID createGPUMutTextureSingle(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat) {
         TextureID i = getNewTextrueID();
         textureImageLayout[i] = VK_IMAGE_LAYOUT_GENERAL;
-        void* data = malloc(width * height * imageFormatSize(imageFormat));
         createTextureImage(data, width, height, textureImageMemorys[i][0], textureImages[i][0], textureImageViews[i][0], false, imageFormat, true, VK_IMAGE_LAYOUT_GENERAL);
         for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++) {
             textureImageMemorys[i][j] = textureImageMemorys[i][0];
             textureImages[i][j] = textureImages[i][0];
             textureImageViews[i][j] = textureImageViews[i][0];
         }
-        free(data);
         constTextures.push_back(i);
         return i;
     }
