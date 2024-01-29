@@ -998,7 +998,7 @@ namespace MZ {
             throw std::runtime_error("failed to begin recording compute command buffer!");
         }
 
-        for (int computePass = 0; computePass < computes.size(); computePass++) {
+        for (int computePass = computes.size()-1; computePass >= 0; computePass--) {
             for (size_t i = 0; i < computes[computePass].size(); i++)
             {
                 Compute compute = computes[computePass][i];
