@@ -69,7 +69,7 @@ namespace MZ {
 
 	ComputeID createCullingCompute(UniformBufferID cameraBuffer, UniformBufferID cameraFullcrumBuffer) {
 		std::array<UniformBufferID, 3> cullingUniformBuffers = { cullingBuffer, cameraFullcrumBuffer };
-		return addCompute(cullingShader, MAX_COMMANDS/32, 1, 1, 0, cullingUniformBuffers.data(), 2, nullptr, 0, nullptr, nullptr, nullptr, 0, nullptr, nullptr, nullptr, 0, nullptr, nullptr, nullptr, 0, nullptr, nullptr, nullptr, 0, true);
+		return addCompute(cullingShader, MAX_COMMANDS/32, 1, 1, 0, cullingUniformBuffers.data(), 2, nullptr, 0, nullptr, nullptr, 0, nullptr, nullptr, 0, nullptr, nullptr, 0, nullptr, nullptr, 0, true);
 	}
 
 	void addToCullingBuffer(BoundingSphere& boundingSphere, RenderObjectID renderObjectID, uint32_t instanceCount) {
