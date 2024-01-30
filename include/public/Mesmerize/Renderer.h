@@ -92,12 +92,18 @@ namespace MZ{
     RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer, BoundingSphere boundingSphere);
     RenderObjectID addRenderObject(MaterialID material, VertexBufferID vertexBuffer, IndexBufferID indexBuffer, VertexBufferID instanceBuffer, BoundingSphere boundingSphere);
 
+
+    enum storageAccess {
+        rAccess,
+        wAccess,
+        rwAccess,
+    };
     /// <summary>
     /// Call once then this compute shader will be called every frame
     /// </summary>
     ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, uint16_t computePass, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers,
-        TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, bool* storageUniformsLastFrame, uint32_t numStorageUniforms, VertexBufferID* storageVertex, bool* storageVertexLastFrame,
-        uint32_t numStorageVertex, IndexBufferID* storageIndex, bool* storageIndexLastFrame, uint32_t numStorageIndex, TextureID* storageTexture, bool* storageTextureLastFrame, uint32_t numStorageTexture, bool hasDrawCommandBuffer);
+        TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, bool* storageUniformsLastFrame, storageAccess* storageUniformAccess, uint32_t numStorageUniforms, VertexBufferID* storageVertex, bool* storageVertexLastFrame, storageAccess* storageVertexAccess,
+        uint32_t numStorageVertex, IndexBufferID* storageIndex, bool* storageIndexLastFrame, storageAccess* storageIndexAccess, uint32_t numStorageIndex, TextureID* storageTexture, bool* storageTextureLastFrame, storageAccess* storageTextureAccess, uint32_t numStorageTexture, bool hasDrawCommandBuffer);
 
 
     /// <summary>

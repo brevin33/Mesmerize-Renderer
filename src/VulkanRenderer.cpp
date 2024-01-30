@@ -422,9 +422,9 @@ namespace MZ {
         return i;
     }
 
-    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, uint16_t computePass, UniformBufferID* uniformBuffers, uint32_t numUniformBuffers,
-        TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, bool* storageUniformsLastFrame, uint32_t numStorageUniforms, VertexBufferID* storageVertex, bool* storageVertexLastFrame,
-        uint32_t numStorageVertex, IndexBufferID* storageIndex, bool* storageIndexLastFrame, uint32_t numStorageIndex, TextureID* storageTexture, bool* storageTextureLastFrame, uint32_t numStorageTexture, bool hasDrawCommandBuffer){
+    ComputeID addCompute(ComputeShaderID computeShader, uint32_t xDispatch, uint32_t yDispatch, uint32_t zDispatch, uint16_t computePass, UniformBufferID* UniformBuffers, uint32_t numUniformBuffers,
+        TextureID* textures, uint32_t numTextues, UniformBufferID* storageUniforms, bool* storageUniformsLastFrame, storageAccess* storageUniformAccess, uint32_t numStorageUniforms, VertexBufferID* storageVertex, bool* storageVertexLastFrame, storageAccess* storageVertexAccess,
+        uint32_t numStorageVertex, IndexBufferID* storageIndex, bool* storageIndexLastFrame, storageAccess* storageIndexAccess, uint32_t numStorageIndex, TextureID* storageTexture, bool* storageTextureLastFrame, storageAccess* storageTextureAccess, uint32_t numStorageTexture, bool hasDrawCommandBuffer){
         ComputeID i = getNewComputeID(computePass);
         Compute compute;
         compute.x = xDispatch;
@@ -432,8 +432,158 @@ namespace MZ {
         compute.z = zDispatch;
         compute.shaderID = computeShader;
         compute.shouldRun = true;
-        
-        createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, uniformBuffers, numUniformBuffers, storageUniforms, storageUniformsLastFrame,
+        QueueFamilyIndices qFam = findQueueFamilies(physicalDevice);
+
+        for (int i = 0; i < numUniformBuffers; i++) {
+            for (int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                VkBufferMemoryBarrier bar = {};
+                bar.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+                bar.buffer = uniformBuffers[UniformBuffers[i]][j];
+                bar.offset = 0;
+                bar.size = uniformBuffersSize[UniformBuffers[i]];
+                bar.srcQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                bar.dstQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                bar.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                bar.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                compute.bufferBarriers[j].push_back(bar);
+            }
+        }
+        for (int i = 0; i < numTextues; i++) {
+            for (int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                VkImageMemoryBarrier bar = {};
+                bar.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                bar.image = textureImages[textures[i]][j];
+                bar.oldLayout = textureImageLayout[textures[i]];
+                bar.newLayout = textureImageLayout[textures[i]];
+                bar.srcQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                bar.dstQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                bar.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                bar.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                compute.imageBarriers[j].push_back(bar);
+            }
+        }
+        for (int i = 0; i < numStorageUniforms; i++) {
+            if (storageUniformAccess[i] == rAccess || storageUniformAccess[i] == rwAccess) {
+                for (int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                    VkBufferMemoryBarrier bar = {};
+                    bar.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+                    bar.buffer = storageUniformsLastFrame[i] ? uniformBuffers[storageUniforms[i]][j == 0 ? MAX_FRAMES_IN_FLIGHT : j - 1] : uniformBuffers[storageUniforms[i]][j];
+                    bar.offset = 0;
+                    bar.size = uniformBuffersSize[storageUniforms[i]];
+                    bar.srcQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.dstQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    bar.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    compute.bufferBarriers[j].push_back(bar);
+                }
+            }
+            if (storageUniformAccess[i] == wAccess || storageUniformAccess[i] == rwAccess) {
+                for (int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                    VkBufferMemoryBarrier bar = {};
+                    bar.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+                    bar.buffer = storageUniformsLastFrame[i] ? uniformBuffers[storageUniforms[i]][j == 0 ? MAX_FRAMES_IN_FLIGHT: j - 1 ] : uniformBuffers[storageUniforms[i]][j];
+                    bar.offset = 0;
+                    bar.size = uniformBuffersSize[storageUniforms[i]];
+                    bar.srcQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.dstQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    bar.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    compute.bufferBarriers[j].push_back(bar);
+                }
+            }
+        }
+        for (int i = 0; i < numStorageVertex; i++) {
+            if (storageVertexAccess[i] == rAccess || storageVertexAccess[i] == rwAccess) {
+                for (int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                    VkBufferMemoryBarrier bar = {};
+                    bar.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+                    bar.buffer = storageVertexLastFrame[i] ? vertexBuffers[storageVertex[i]][j == 0 ? MAX_FRAMES_IN_FLIGHT : j - 1] : vertexBuffers[storageVertex[i]][j];
+                    bar.offset = 0;
+                    bar.size = vertexBuffersSize[storageVertex[i]];
+                    bar.srcQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.dstQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    bar.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    compute.bufferBarriers[j].push_back(bar);
+                }
+            }
+            if (storageVertexAccess[i] == wAccess || storageVertexAccess[i] == rwAccess) {
+                for (int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                    VkBufferMemoryBarrier bar = {};
+                    bar.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+                    bar.buffer = storageVertexLastFrame[i] ? vertexBuffers[storageVertex[i]][j == 0 ? MAX_FRAMES_IN_FLIGHT : j-1]: vertexBuffers[storageVertex[i]][j];
+                    bar.offset = 0;
+                    bar.size = vertexBuffersSize[storageVertex[i]];
+                    bar.srcQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.dstQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    bar.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    compute.bufferBarriers[j].push_back(bar);
+                }
+            }
+        }
+        for (int i = 0; i < numStorageIndex; i++) {
+            if (storageIndexAccess[i] == rAccess || storageIndexAccess[i] == rwAccess) {
+                for (int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                    VkBufferMemoryBarrier bar = {};
+                    bar.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+                    bar.buffer = storageIndexLastFrame[i] ? indexBuffers[storageIndex[i]][j == 0 ? MAX_FRAMES_IN_FLIGHT : j - 1] : indexBuffers[storageIndex[i]][j];
+                    bar.offset = 0;
+                    bar.size = indexBuffersSize[storageIndex[i]];
+                    bar.srcQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.dstQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    bar.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    compute.bufferBarriers[j].push_back(bar);
+                }
+            }
+            if (storageIndexAccess[i] == wAccess || storageIndexAccess[i] == rwAccess) {
+                for (int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                    VkBufferMemoryBarrier bar = {};
+                    bar.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+                    bar.buffer = storageIndexLastFrame[i] ? indexBuffers[storageIndex[i]][j == 0 ? MAX_FRAMES_IN_FLIGHT: j-1] : indexBuffers[storageIndex[i]][j];
+                    bar.offset = 0;
+                    bar.size = indexBuffersSize[storageIndex[i]];
+                    bar.srcQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.dstQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    bar.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    compute.bufferBarriers[j].push_back(bar);
+                }
+            }
+        }
+        for (int i = 0; i < numStorageIndex; i++) {
+            if (storageTextureAccess[i] == rAccess || storageTextureAccess[i] == rwAccess) {
+                for (int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                    VkImageMemoryBarrier bar = {};
+                    bar.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                    bar.image = storageTextureLastFrame[i] ? textureImages[storageTexture[i]][j == 0 ? MAX_FRAMES_IN_FLIGHT : j - 1] : textureImages[storageTexture[i]][j];
+                    bar.oldLayout = textureImageLayout[storageTexture[i]];
+                    bar.newLayout = textureImageLayout[storageTexture[i]];
+                    bar.srcQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.dstQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    bar.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    compute.imageBarriers[j].push_back(bar);
+                }
+            }
+            if (storageTextureAccess[i] == wAccess || storageTextureAccess[i] == rwAccess) {
+                for (int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+                    VkImageMemoryBarrier bar = {};
+                    bar.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                    bar.image = storageTextureLastFrame[i] ? textureImages[storageTexture[i]][j == 0 ? MAX_FRAMES_IN_FLIGHT: j-1] : textureImages[storageTexture[i]][j];
+                    bar.oldLayout = textureImageLayout[storageTexture[i]];
+                    bar.newLayout = textureImageLayout[storageTexture[i]];
+                    bar.srcQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.dstQueueFamilyIndex = qFam.computeFamily.has_value() ? qFam.computeFamily.value() : qFam.graphicsFamily.value();
+                    bar.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    bar.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    compute.imageBarriers[j].push_back(bar);
+                }
+            }
+        }
+
+        createDescriptorSets(compute.descriptorSets, computeDescriptorPool[compute.shaderID], computeDescriptorSetLayout[compute.shaderID], textures, numTextues, UniformBuffers, numUniformBuffers, storageUniforms, storageUniformsLastFrame,
             numStorageUniforms, storageVertex, storageVertexLastFrame, numStorageVertex, storageIndex, storageIndexLastFrame, numStorageIndex, storageTexture, storageTextureLastFrame, numStorageTexture, hasDrawCommandBuffer, false);
 
         computes[(i << 16) >> 16][i >> 16] = compute;
@@ -1008,9 +1158,12 @@ namespace MZ {
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout[compute.shaderID], 0, 1, &compute.descriptorSets[currentFrame], 0, nullptr);
 
                 vkCmdDispatch(commandBuffer, compute.x, compute.y, compute.z);
+
+                vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, compute.bufferBarriers[currentFrame].size(),
+                    compute.bufferBarriers[currentFrame].data(), compute.imageBarriers[currentFrame].size(), compute.imageBarriers[currentFrame].data());
             }
-            vkCmdSetEvent(commandBuffer, computestageEvents[computePass], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-            vkCmdWaitEvents(commandBuffer, 1, &computestageEvents[computePass], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, nullptr, 0, nullptr, 0, nullptr);
+            //vkCmdSetEvent(commandBuffer, computestageEvents[computePass], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+            //vkCmdWaitEvents(commandBuffer, 1, &computestageEvents[computePass], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, nullptr, 0, nullptr, 0, nullptr);
         }
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to record compute command buffer!");

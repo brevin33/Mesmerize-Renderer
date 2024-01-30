@@ -159,6 +159,8 @@ namespace MZ {
         uint32_t y;
         uint32_t z;
         std::array<VkDescriptorSet, MAX_FRAMES_IN_FLIGHT> descriptorSets;
+        std::array<std::vector<VkImageMemoryBarrier>, MAX_FRAMES_IN_FLIGHT> imageBarriers;
+        std::array<std::vector<VkBufferMemoryBarrier>, MAX_FRAMES_IN_FLIGHT> bufferBarriers;
     };
     std::vector<std::vector<Compute>> computes;
     std::vector<VkEvent> computestageEvents;
