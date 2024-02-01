@@ -16,8 +16,8 @@ namespace MZ{
     BOOST_STRONG_TYPEDEF(uint16_t, UniformBufferID);
     BOOST_STRONG_TYPEDEF(uint16_t, VertexBufferID);
     BOOST_STRONG_TYPEDEF(uint16_t, IndexBufferID);
-    BOOST_STRONG_TYPEDEF(uint32_t, ComputeShaderID);
-    BOOST_STRONG_TYPEDEF(uint16_t, ComputeID);
+    BOOST_STRONG_TYPEDEF(uint16_t, ComputeShaderID);
+    BOOST_STRONG_TYPEDEF(uint32_t, ComputeID);
 
     // negitive radius means no culling
     struct BoundingSphere {
