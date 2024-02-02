@@ -78,6 +78,7 @@ namespace MZ {
     };
     DefferedParams defferedParams;
 
+
     VkCommandPool commandPool;
     VkCommandPool computeCommandPool;
 
@@ -212,6 +213,14 @@ namespace MZ {
     std::vector<std::array<VkImageView, MAX_FRAMES_IN_FLIGHT>> textureImageViews;
     std::vector<VkImageLayout> textureImageLayout;
 
+
+    bool hasCubemap = false;
+    ShaderID skyboxShader;
+    MaterialID skyboxMaterial;
+    VertexBufferID skyboxVertexBuffer;
+    IndexBufferID skyboxIndexBuffer;
+
+
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
 #else
@@ -232,13 +241,13 @@ namespace MZ {
 
     void createTextureSampler(VkSampler& textureSampler);
         
-    void createTextureImage(void* imageData, uint32_t texWidth, uint32_t texHeight, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView, bool createMipMaps, ImageFormat imageFormat, bool gpuSide, VkImageLayout finalLayout);
+    void createTextureImage(void* imageData, uint32_t texWidth, uint32_t texHeight, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView, bool createMipMaps, ImageFormat imageFormat, bool gpuSide, VkImageLayout finalLayout, bool cube);
 
-    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t pixelSize, bool cube);
 
-    void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageLayout finalLayout);
+    void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageLayout finalLayout, bool cube = false);
 
-    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1);
+    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1, bool cube = false);
 
     bool hasStencilComponent(VkFormat format);
 
@@ -327,7 +336,7 @@ namespace MZ {
 
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
-    void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VmaAllocation& imageMemory);
+    void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VmaAllocation& imageMemory, uint32_t arrayLayers = 1, bool cube = false);
 
     void createRenderPass(int numColorAttachments);
 
@@ -345,7 +354,7 @@ namespace MZ {
 
     void createImageViews();
 
-    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
+    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, bool cube);
 
     void createLogicalDevice();
 

@@ -4,10 +4,13 @@
 #include <Mesmerize/Defaults.h>
 #include <filesystem>
 #include "camera.h"
+#define STB_IMAGE_STATIC
+#include "stb_image.h"
 
 constexpr int WIDTH = 1920;
 constexpr int HEIGHT = 1080;
 constexpr bool fullScreen = false;
+
 
 // camera
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
@@ -120,6 +123,34 @@ void main() {
 
 	backpack.unload();
 
+	// load cubemap data
+	std::vector<stbi_uc> cubemapData;
+	int texWidth, texHeight, texChannels;
+	stbi_uc* pixels = stbi_load("../../../textures/skybox/right.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	cubemapData.insert(cubemapData.end(), pixels, pixels + (texHeight * texWidth * 4));
+	stbi_image_free(pixels);
+	pixels = stbi_load("../../../textures/skybox/left.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	cubemapData.insert(cubemapData.end(), pixels, pixels + (texHeight * texWidth * 4));
+	stbi_image_free(pixels);
+	pixels = stbi_load("../../../textures/skybox/top.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	cubemapData.insert(cubemapData.end(), pixels, pixels + (texHeight * texWidth * 4));
+	stbi_image_free(pixels);
+	pixels = stbi_load("../../../textures/skybox/bottom.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	cubemapData.insert(cubemapData.end(), pixels, pixels + (texHeight * texWidth * 4));
+	stbi_image_free(pixels);
+	pixels = stbi_load("../../../textures/skybox/front.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	cubemapData.insert(cubemapData.end(), pixels, pixels + (texHeight * texWidth * 4));
+	stbi_image_free(pixels);
+	pixels = stbi_load("../../../textures/skybox/back.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	cubemapData.insert(cubemapData.end(), pixels, pixels + (texHeight * texWidth * 4));
+	stbi_image_free(pixels);
+
+	uint64_t adisfhaoi = cubemapData.size();
+
+	MZ::TextureID cubemap = MZ::createConstTexture(cubemapData.data(), texWidth, texHeight, MZ::IFSRGBA8, true);
+
+	MZ::setSkybox(cubemap);
+
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -129,9 +160,10 @@ void main() {
 
 		processInput(window);
 		glm::mat4 view = camera.GetViewMatrix();
-		glm::mat4 proj = glm::perspective(glm::radians(45.0f), MZ::getRenderWidth() / (float)MZ::getRenderHeight(), 0.1f, 100.0f);
+		glm::mat4 proj = glm::perspective(glm::radians(45.0f), MZ::getRenderWidth() / (float)MZ::getRenderHeight(), 0.1f, 1000.0f);
 		proj[1][1] *= -1;
 		glm::mat4 cambuf[] = { view, proj };
+
 		MZ::updateCPUMutUniformBuffer(MZ::mainCameraBuffer, cambuf, sizeof(glm::mat4) * 2, 0);
 		
 		spin(instanceBuffer);

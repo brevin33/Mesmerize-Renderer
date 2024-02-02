@@ -84,6 +84,8 @@ namespace MZ{
     /// </summary>
     void setDefferedShader(std::string fragShader, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers);
 
+    void setSkybox(TextureID cubemap);
+
     /// <summary>
     /// Call once then an object will be rendered every drawFrame
     /// </summary>
@@ -129,7 +131,7 @@ namespace MZ{
 
 
     enum ImageFormat {
-        IFSRGB8 = VK_FORMAT_R8G8B8A8_SRGB,
+        IFSRGBA8 = VK_FORMAT_R8G8B8A8_SRGB,
         IFFloat4 = VK_FORMAT_R32G32B32A32_SFLOAT,
         IFFloat3 = VK_FORMAT_R32G32B32_SFLOAT,
         IFFloat2 = VK_FORMAT_R32G32_SFLOAT,
@@ -139,11 +141,11 @@ namespace MZ{
     /// loads a texture to be used by other parts of the renderer
     /// </summary>
     TextureID createConstTexture(std::string textureFilepath);
-    TextureID createConstTexture(void* data ,uint32_t width, uint32_t height, ImageFormat imageFormat);
+    TextureID createConstTexture(void* data ,uint32_t width, uint32_t height, ImageFormat imageFormat, bool cubemap);
     TextureID createGPUMutTexture(uint32_t width, uint32_t height, ImageFormat imageFormat);
-    TextureID createGPUMutTexture(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat);
+    TextureID createGPUMutTexture(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat, bool cubemap);
     TextureID createGPUMutTextureSingle(uint32_t width, uint32_t height, ImageFormat imageFormat);
-    TextureID createGPUMutTextureSingle(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat);
+    TextureID createGPUMutTextureSingle(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat, bool cubemap);
 
 
     /// <summary>

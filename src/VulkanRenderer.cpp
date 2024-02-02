@@ -4,7 +4,7 @@
 #include <Mesmerize/Renderer.h>
 #include <GenericRenderer/DefaultRenderer.h>
 #include <GenericRenderer/DefaultPrivate.h>
-
+#include <Mesmerize/Defaults.h>
 namespace MZ {
 
 
@@ -459,6 +459,49 @@ namespace MZ {
         createDescriptorSets(defferedDescriptorSets, defferedDescriptorPool, defferedDescriptorSetLayout, textureIDs, numTextureIDs, bufferIDs, numBuffers, nullptr, nullptr, 0, nullptr, nullptr, 0, nullptr, nullptr, 0, nullptr, nullptr, 0, false, true);
     }
 
+    void setSkybox(TextureID cubemap) {
+        
+        if (!hasCubemap) {
+            std::vector<uint32_t> skyIndices{
+                2, 6, 7,
+                2, 3, 7,
+                0, 4, 5,
+                0, 1, 5,
+                0, 2, 6,
+                0, 4, 6,
+                1, 3, 7,
+                1, 5, 7,
+                0, 2, 3,
+                0, 1, 3,
+                4, 6, 7,
+                4, 5, 7
+            };
+            std::vector<float> skyVertices{
+                -1, -1,  1,
+                 1, -1,  1,
+                -1,  1,  1, 
+                 1,  1,  1, 
+                -1, -1, -1, 
+                 1, -1, -1, 
+                -1,  1, -1, 
+                 1,  1, -1  
+            };
+            skyboxVertexBuffer = createConstVertexBuffer(skyVertices.data(), skyVertices.size() / 3, sizeof(float) * skyVertices.size());
+            skyboxIndexBuffer = createConstIndexBuffer(skyIndices.data(), skyIndices.size() * sizeof(uint32_t));
+        }
+        else {
+            deleteResource(skyboxShader);
+            deleteResource(skyboxMaterial);
+        }
+
+        ShaderStages vertAccess = SSVert;
+        ShaderStages fragAccess = SSFrag;
+        VertexValueType vvt = VTfloat3;
+        skyboxShader = createShader(rendererDir + "/shaders/skyboxVert.spv", rendererDir + "/shaders/skyboxFrag.spv", 1, &fragAccess, 1, &vertAccess, 1, &vvt, 1, nullptr, 0, NoCull);
+        skyboxMaterial = createMaterial(skyboxShader, &cubemap, 1, &mainCameraBuffer, 1);
+        hasCubemap = true;
+    }
+
     MaterialID createMaterial(ShaderID shaderID, TextureID* textureIDs, uint32_t numTextureIDs, UniformBufferID* bufferIDs, uint32_t numBuffers){
         MaterialID i = (MaterialID)materialShaderIDs.size();
         materialShaderIDs.resize(i+1);
@@ -487,6 +530,7 @@ namespace MZ {
 
         return i;
     }
+
 
     ComputeShaderID createComputeShader(std::string computeShaderPath, uint32_t maxNumberOfComputes, uint32_t numUniformBuffers, uint32_t numStaticTextures, uint32_t numStorageBuffers, uint32_t numStorageTextues, bool hasDrawCommandBuffer)
     {
@@ -751,16 +795,16 @@ namespace MZ {
 
     TextureID createGPUMutTexture(uint32_t width, uint32_t height, ImageFormat imageFormat) {
         void* data = malloc(width * height * imageFormatSize(imageFormat));
-        TextureID i = createGPUMutTexture(data, width, height, imageFormat);
+        TextureID i = createGPUMutTexture(data, width, height, imageFormat, false);
         free(data);
         return i;
     }
 
-    TextureID createGPUMutTexture(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat) {
+    TextureID createGPUMutTexture(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat, bool cubemap) {
         TextureID i = getNewTextrueID();
         textureImageLayout[i] = VK_IMAGE_LAYOUT_GENERAL;
         for (size_t j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-            createTextureImage(data, width, height, textureImageMemorys[i][j], textureImages[i][j], textureImageViews[i][j], false, imageFormat, true, VK_IMAGE_LAYOUT_GENERAL);
+            createTextureImage(data, width, height, textureImageMemorys[i][j], textureImages[i][j], textureImageViews[i][j], false, imageFormat, true, VK_IMAGE_LAYOUT_GENERAL, cubemap);
         }
         mutGPUTextures.push_back(i);
         return i;
@@ -769,15 +813,15 @@ namespace MZ {
 
     TextureID createGPUMutTextureSingle(uint32_t width, uint32_t height, ImageFormat imageFormat) {
         void* data = malloc(width * height * imageFormatSize(imageFormat));
-        TextureID i = createGPUMutTextureSingle(data, width, height, imageFormat);
+        TextureID i = createGPUMutTextureSingle(data, width, height, imageFormat, false);
         free(data);
         return i;
     }
 
-    TextureID createGPUMutTextureSingle(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat) {
+    TextureID createGPUMutTextureSingle(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat, bool cubemap) {
         TextureID i = getNewTextrueID();
         textureImageLayout[i] = VK_IMAGE_LAYOUT_GENERAL;
-        createTextureImage(data, width, height, textureImageMemorys[i][0], textureImages[i][0], textureImageViews[i][0], false, imageFormat, true, VK_IMAGE_LAYOUT_GENERAL);
+        createTextureImage(data, width, height, textureImageMemorys[i][0], textureImages[i][0], textureImageViews[i][0], false, imageFormat, true, VK_IMAGE_LAYOUT_GENERAL, cubemap);
         for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++) {
             textureImageMemorys[i][j] = textureImageMemorys[i][0];
             textureImages[i][j] = textureImages[i][0];
@@ -787,10 +831,10 @@ namespace MZ {
         return i;
     }
 
-    TextureID createConstTexture(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat) {
+    TextureID createConstTexture(void* data, uint32_t width, uint32_t height, ImageFormat imageFormat, bool cubemap) {
         TextureID i = getNewTextrueID();
         textureImageLayout[i] = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        createTextureImage(data, width, height, textureImageMemorys[i][0], textureImages[i][0], textureImageViews[i][0], true, imageFormat, false, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        createTextureImage(data, width, height, textureImageMemorys[i][0], textureImages[i][0], textureImageViews[i][0], true, imageFormat, false, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,cubemap);
         for (size_t j = 1; j < MAX_FRAMES_IN_FLIGHT; j++)
         {
             textureImageMemorys[i][j] = textureImageMemorys[i][0];
@@ -806,7 +850,7 @@ namespace MZ {
         int texWidth, texHeight, texChannels;
         stbi_uc* pixels = stbi_load(textureFilepath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
-        TextureID i = createConstTexture(pixels, texWidth, texHeight, IFSRGB8);
+        TextureID i = createConstTexture(pixels, texWidth, texHeight, IFSRGBA8,false);
         stbi_image_free(pixels);
         return i;
     }
@@ -975,6 +1019,21 @@ namespace MZ {
             uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
 
             vkCmdDrawIndexedIndirect(commandBuffer, drawCommandBuffer[renderFrame], indirect_offset, 1, draw_stride);
+        }
+
+        if (hasCubemap) {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderGraphicsPipelines[materialShaderIDs[skyboxMaterial]]);
+
+            VkBuffer vertex = vertexBuffers[skyboxVertexBuffer][renderFrame];
+            VkBuffer vertexBuffers[] = { vertex };
+            VkDeviceSize offsets[] = { 0, 0 };
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+            vkCmdBindIndexBuffer(commandBuffer, indexBuffers[skyboxIndexBuffer][renderFrame], 0, VK_INDEX_TYPE_UINT32);
+
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderPipelineLayouts[materialShaderIDs[skyboxMaterial]], 0, 1, &materialDescriptorSets[skyboxMaterial][renderFrame], 0, nullptr);
+
+            vkCmdDrawIndexed(commandBuffer, indexNumIndices[skyboxIndexBuffer], 1, 0, 0, 0);
         }
     }
 
@@ -1145,7 +1204,7 @@ namespace MZ {
     uint32_t imageFormatSize(ImageFormat imageFormat) {
         switch (imageFormat)
         {
-        case MZ::IFSRGB8:
+        case MZ::IFSRGBA8:
             return 4;
         case MZ::IFFloat4:
             return sizeof(glm::vec4);
@@ -1162,9 +1221,12 @@ namespace MZ {
     }
 
 
-    void createTextureImage(void* imageData, uint32_t texWidth, uint32_t texHeight, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView, bool createMipMaps, ImageFormat imageFormat, bool gpuSide, VkImageLayout finalLayout) {
-        VkDeviceSize imageSize = texWidth * texHeight * imageFormatSize(imageFormat);
-        uint32_t mipLevels = createMipMaps ? static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1 : 1;
+    void createTextureImage(void* imageData, uint32_t texWidth, uint32_t texHeight, VmaAllocation& textureImageMemory, VkImage& textureImage, VkImageView& textureImageView, bool createMipMaps, ImageFormat imageFormat, bool gpuSide, VkImageLayout finalLayout, bool cube) {
+        
+        VkDeviceSize imageSize;
+        if(!cube)imageSize = texWidth * texHeight * imageFormatSize(imageFormat);
+        else imageSize = texWidth * texHeight * imageFormatSize(imageFormat) * 6;
+        uint32_t mipLevels = createMipMaps ? !cube ? static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1 : 1 : 1;
 
         if (!imageData) {
             throw std::runtime_error("failed to load texture image!");
@@ -1182,19 +1244,19 @@ namespace MZ {
 
         VkImageUsageFlagBits extraUsage = gpuSide ? VK_IMAGE_USAGE_STORAGE_BIT : (VkImageUsageFlagBits)0;
 
-        createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, (VkFormat)imageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | extraUsage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+        createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, (VkFormat)imageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | extraUsage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, cube ? 6 : 1, cube);
 
-        transitionImageLayout(textureImage, (VkFormat)imageFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
-        copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+        transitionImageLayout(textureImage, (VkFormat)imageFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, cube);
+        copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), imageFormatSize(imageFormat), cube);
 
         vmaDestroyBuffer(allocator,stagingBuffer,stagingBufferMemory);
 
-        generateMipmaps(textureImage, (VkFormat)imageFormat, texWidth, texHeight, mipLevels, finalLayout);
+        generateMipmaps(textureImage, (VkFormat)imageFormat, texWidth, texHeight, mipLevels, finalLayout, cube);
 
-        textureImageView = createImageView(textureImage, (VkFormat)imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+        textureImageView = createImageView(textureImage, (VkFormat)imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, cube);
     }
 
-    void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageLayout finalLayout) {
+    void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageLayout finalLayout, bool cube) {
         // Check if image format supports linear blitting
         VkFormatProperties formatProperties;
         vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
@@ -1212,7 +1274,7 @@ namespace MZ {
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.layerCount = cube ? 6 : 1;
         barrier.subresourceRange.levelCount = 1;
 
         int32_t mipWidth = texWidth;
@@ -1237,13 +1299,13 @@ namespace MZ {
             blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             blit.srcSubresource.mipLevel = i - 1;
             blit.srcSubresource.baseArrayLayer = 0;
-            blit.srcSubresource.layerCount = 1;
+            blit.srcSubresource.layerCount = cube ? 6 : 1;
             blit.dstOffsets[0] = { 0, 0, 0 };
             blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
             blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             blit.dstSubresource.mipLevel = i;
             blit.dstSubresource.baseArrayLayer = 0;
-            blit.dstSubresource.layerCount = 1;
+            blit.dstSubresource.layerCount = cube ? 6 : 1;
 
             vkCmdBlitImage(commandBuffer,
                 image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -1281,39 +1343,40 @@ namespace MZ {
         endSingleTimeCommands(commandBuffer);
     }
 
-    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
+    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t pixelSize, bool cube) {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+        uint32_t layers = cube ? 6 : 1;
+        for (int i = 0; i < layers; i++) {
+            VkBufferImageCopy region{};
+            region.bufferOffset = i * width * height * pixelSize;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
 
-        VkBufferImageCopy region{};
-        region.bufferOffset = 0;
-        region.bufferRowLength = 0;
-        region.bufferImageHeight = 0;
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = 0;
+            region.imageSubresource.baseArrayLayer = i;
+            region.imageSubresource.layerCount = 1;
 
-        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.imageSubresource.mipLevel = 0;
-        region.imageSubresource.baseArrayLayer = 0;
-        region.imageSubresource.layerCount = 1;
+            region.imageOffset = { 0, 0, 0 };
+            region.imageExtent = {
+                width,
+                height,
+                1,
+            };
 
-        region.imageOffset = { 0, 0, 0 };
-        region.imageExtent = {
-            width,
-            height,
-            1
-        };
-
-        vkCmdCopyBufferToImage(
-            commandBuffer,
-            buffer,
-            image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1,
-            &region
-        );
-
+            vkCmdCopyBufferToImage(
+                commandBuffer,
+                buffer,
+                image,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &region
+            );
+        }
         endSingleTimeCommands(commandBuffer);
     }
 
-    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels) {
+    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, bool cube) {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
         VkImageMemoryBarrier barrier{};
@@ -1337,7 +1400,7 @@ namespace MZ {
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = mipLevels;
         barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.layerCount = cube ? 6 : 1;
 
         VkPipelineStageFlags sourceStage;
         VkPipelineStageFlags destinationStage;
@@ -1879,7 +1942,7 @@ namespace MZ {
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
         depthStencil.depthTestEnable = VK_TRUE;
         depthStencil.depthWriteEnable = VK_TRUE;
-        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
         depthStencil.depthBoundsTestEnable = VK_FALSE;
         depthStencil.stencilTestEnable = VK_FALSE;
 
@@ -2508,7 +2571,7 @@ namespace MZ {
         {
             VkFormat colorFormat = swapChainImageFormat;
             createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorImage[i], colorImageMemory[i]);
-            colorImageView[i] = createImageView(colorImage[i], colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+            colorImageView[i] = createImageView(colorImage[i], colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, false);
         }
     }
 
@@ -2520,7 +2583,7 @@ namespace MZ {
         {
             VkFormat colorFormat = swapChainImageFormat;
             createImage(swapChainExtent.width, swapChainExtent.height, 1, VK_SAMPLE_COUNT_1_BIT, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorImageMsaaOut[i], colorImageMemoryMsaaOut[i]);
-            colorImageViewMsaaOut[i] = createImageView(colorImageMsaaOut[i], colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+            colorImageViewMsaaOut[i] = createImageView(colorImageMsaaOut[i], colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, false);
         }
     }
 
@@ -2528,7 +2591,7 @@ namespace MZ {
         VkFormat depthFormat = findDepthFormat();
 
         createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-        depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+        depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1, false);
     }
 
     VkFormat findDepthFormat() {
@@ -2657,21 +2720,22 @@ namespace MZ {
         return attributeDescriptions;
     }
 
-    void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VmaAllocation& imageMemory) {
+    void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VmaAllocation& imageMemory, uint32_t arrayLayers, bool cube) {
         VkImageCreateInfo imageInfo{};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.imageType = cube ? VK_IMAGE_TYPE_2D : VK_IMAGE_TYPE_2D;
         imageInfo.extent.width = width;
         imageInfo.extent.height = height;
         imageInfo.extent.depth = 1;
         imageInfo.mipLevels = mipLevels;
-        imageInfo.arrayLayers = 1;
+        imageInfo.arrayLayers = arrayLayers;
         imageInfo.format = format;
         imageInfo.tiling = tiling;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         imageInfo.usage = usage;
         imageInfo.samples = numSamples;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imageInfo.flags = cube ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
 
         VmaAllocationCreateInfo allocInfo = {};
         allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -2893,21 +2957,21 @@ namespace MZ {
         swapChainImageViews.resize(swapChainImages.size());
 
         for (uint32_t i = 0; i < swapChainImages.size(); i++) {
-            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, false);
         }
     }
 
-    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels) {
+    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, bool cube) {
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = image;
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.viewType = cube ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = format;
         viewInfo.subresourceRange.aspectMask = aspectFlags;
         viewInfo.subresourceRange.baseMipLevel = 0;
         viewInfo.subresourceRange.levelCount = mipLevels;
         viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
+        viewInfo.subresourceRange.layerCount = cube ? 6: 1;
 
         VkImageView imageView;
         if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
