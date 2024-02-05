@@ -26,7 +26,7 @@ target_link_libraries(MyApp PRIVATE MesmerizeRenderer)
 
 
 ## How to Use
-Example usage can found in the example folder in [main.cpp](https://github.com/brevin33/Mesmerize-Renderer/blob/main/example/main.cpp)
+Example usage can found in the example folder in [main.cpp](https://github.com/brevin33/MesmerizeRenderer/blob/main/example/modelLoading/main.cpp)
 
 ## Stuff made with this
 
