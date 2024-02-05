@@ -27,3 +27,7 @@ target_link_libraries(MyApp PRIVATE MesmerizeRenderer)
 
 ## How to Use
 Example usage can found in the example folder in [main.cpp](https://github.com/brevin33/Mesmerize-Renderer/blob/main/example/main.cpp)
+
+## Stuff made with this
+
+This Project was made with Mesmerize Renderer https://github.com/brevin33/Ocean-Rendering
